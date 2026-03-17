@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — BlazeUp</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <a href="index.html" class="nav-logo">
+      <img src="assets/logo.png" alt="BlazeUp Logo" class="logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Shop</a></li>
+      <li id="nav-dashboard" style="display:none"><a href="dashboard.html">Dashboard</a></li>
+      <li id="nav-admin" style="display:none"><a href="admin.html">Admin</a></li>
+      <li id="nav-login"><a href="login.html" class="active">Login</a></li>
+      <li id="nav-register"><a href="register.html">Register</a></li>
+      <li id="nav-logout" style="display:none">
+        <a href="#" onclick="logout()">Logout</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ══════════════════════════════════════════
+       LOGIN FORM
+  ══════════════════════════════════════════ -->
+  <main class="auth-page">
+    <div class="auth-card">
+
+      <!-- Logo / Title -->
+      <div class="auth-header">
+        <h1>Welcome back</h1>
+        <p>Log in to your BlazeUp account</p>
+      </div>
+
+      <!-- The form — when submitted, loginUser() is called in main.js -->
+      <form id="login-form" onsubmit="loginUser(event)">
+
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="you@example.com"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Enter your password"
+            required
+          />
+        </div>
+
+        <!-- Error message box — hidden by default, shown if login fails -->
+        <div id="error-message" class="error-box" style="display:none"></div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
+          Log In
+        </button>
+
+      </form>
+
+      <p class="auth-switch">
+        Don't have an account? <a href="register.html">Register here</a>
+      </p>
+
+    </div>
+  </main>
+
+  <script src="js/main.js"></script>
+
+</body>
+</html>

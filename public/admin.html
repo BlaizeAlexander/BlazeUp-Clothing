@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — BlazeUp</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <a href="index.html" class="nav-logo">
+      <img src="assets/logo.png" alt="BlazeUp Logo" class="logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Shop</a></li>
+      <li><a href="admin.html" class="active">Admin</a></li>
+      <li><a href="#" onclick="adminLogout()">Logout</a></li>
+    </ul>
+  </nav>
+
+  <!-- ADMIN LAYOUT -->
+  <div class="admin-page">
+
+    <!-- Page title -->
+    <div class="admin-title-bar">
+      <h1>Admin Dashboard</h1>
+      <p>Manage your products and view customer orders.</p>
+    </div>
+
+    <!-- Tab buttons -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" id="tab-products" onclick="switchTab('products')">
+        🛍️ Products
+      </button>
+      <button class="admin-tab" id="tab-orders" onclick="switchTab('orders')">
+        📦 Orders
+        <span class="order-count-badge" id="order-count-badge" style="display:none">0</span>
+      </button>
+      <button class="admin-tab" id="tab-customers" onclick="switchTab('customers')">
+        👥 Customers
+        <span class="order-count-badge" id="customer-count-badge" style="display:none">0</span>
+      </button>
+      <button class="admin-tab" id="tab-discounts" onclick="switchTab('discounts')">
+        🏷️ Discounts
+      </button>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         PRODUCTS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-products" class="admin-panel">
+
+      <div class="admin-panel-header">
+        <h2>All Products</h2>
+        <button class="btn btn-primary" onclick="openProductModal()">+ Add New Product</button>
+      </div>
+
+      <div id="products-table-wrap">
+        <!-- Filled by loadAdminProducts() in admin.js -->
+        <p class="admin-loading">Loading products...</p>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         CUSTOMERS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-customers" class="admin-panel" style="display:none">
+
+      <div class="admin-panel-header">
+        <h2>Registered Customers</h2>
+        <button class="btn btn-outline" onclick="loadAdminCustomers()">↻ Refresh</button>
+      </div>
+
+      <!-- Customer list — clicking a row expands the detail card -->
+      <div id="customers-list-wrap">
+        <p class="admin-loading">Loading customers...</p>
+      </div>
+
+      <!-- Customer detail card — shown when a row is clicked -->
+      <div id="customer-detail" style="display:none" class="customer-detail-card">
+        <div class="customer-detail-header">
+          <h3 id="detail-username"></h3>
+          <button class="cart-close-btn" onclick="closeCustomerDetail()">✕</button>
+        </div>
+        <div id="customer-detail-body"></div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         DISCOUNTS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-discounts" class="admin-panel" style="display:none">
+
+      <div class="admin-panel-header">
+        <h2>Discount Codes</h2>
+        <button class="btn btn-primary" onclick="openDiscountModal()">+ Add Discount</button>
+      </div>
+
+      <div id="discounts-table-wrap">
+        <p class="admin-loading">Loading discounts...</p>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         ORDERS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-orders" class="admin-panel" style="display:none">
+
+      <div class="admin-panel-header">
+        <h2>Customer Orders</h2>
+        <button class="btn btn-outline" onclick="loadAdminOrders()">↻ Refresh</button>
+      </div>
+
+      <div id="orders-table-wrap">
+        <p class="admin-loading">Loading orders...</p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       ADD / EDIT PRODUCT MODAL
+  ══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="product-modal-overlay" onclick="closeProductModal()"></div>
+
+  <div class="checkout-modal" id="product-modal">
+    <div class="modal-header">
+      <h2 id="product-modal-title">Add New Product</h2>
+      <button class="cart-close-btn" onclick="closeProductModal()">✕</button>
+    </div>
+
+    <form id="product-form" onsubmit="saveProduct(event)" style="padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
+
+      <!-- Hidden field: stores the product ID when editing -->
+      <input type="hidden" id="product-id" value="" />
+
+      <div class="modal-form-group">
+        <label for="product-name">Product Name</label>
+        <input type="text" id="product-name" placeholder="e.g. Classic White Tee" required />
+      </div>
+
+      <div class="modal-form-group">
+        <label for="product-desc">Description</label>
+        <textarea id="product-desc" placeholder="Describe the product..." rows="2"></textarea>
+      </div>
+
+      <div class="modal-form-group">
+        <label for="product-price">Price (₱)</label>
+        <input type="number" id="product-price" placeholder="e.g. 299" min="0" step="0.01" required />
+      </div>
+
+      <!-- Price Tiers -->
+      <div class="modal-form-group">
+        <label>
+          Price Tiers
+          <span style="font-weight:400;color:#777;font-size:0.82rem"> (optional — different prices per quantity)</span>
+        </label>
+        <div class="tier-header-row">
+          <span>Min Qty</span>
+          <span>Price (₱)</span>
+          <span></span>
+        </div>
+        <div id="price-tiers-container"></div>
+        <button type="button" class="btn btn-small btn-outline" onclick="addTierRow()" style="margin-top:6px">
+          + Add Tier
+        </button>
+      </div>
+
+      <!-- Sizes / Variants -->
+      <div class="modal-form-group">
+        <label>
+          Sizes / Variants
+          <span style="font-weight:400;color:#777;font-size:0.82rem"> (optional — e.g. Small, Medium, Large)</span>
+        </label>
+        <div class="tier-header-row">
+          <span>Size Name</span>
+          <span>Price (₱)</span>
+          <span></span>
+        </div>
+        <div id="variants-container"></div>
+        <button type="button" class="btn btn-small btn-outline" onclick="addVariantRow()" style="margin-top:6px">
+          + Add Size
+        </button>
+      </div>
+
+      <!-- Product Photos (multiple) -->
+      <div class="modal-form-group">
+        <label>
+          Product Photos
+          <span id="photo-optional-label" style="font-weight:400;color:#777;font-size:0.82rem"> (optional — keep current if blank)</span>
+        </label>
+        <div class="file-upload-box" onclick="document.getElementById('product-images').click()">
+          <p id="product-file-text">📷 Tap to choose photos (you can select multiple)</p>
+          <div id="product-img-previews" class="admin-img-preview-row"></div>
+        </div>
+        <input
+          type="file"
+          id="product-images"
+          accept="image/*"
+          multiple
+          style="display:none"
+          onchange="previewProductImages(this)"
+        />
+      </div>
+
+      <div id="product-form-error" class="error-box" style="display:none"></div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="product-save-btn">
+        Save Product
+      </button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeProductModal()">
+        Cancel
+      </button>
+
+    </form>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SCREENSHOT VIEWER MODAL
+       Opens when admin clicks a payment thumbnail
+  ══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="screenshot-overlay" onclick="closeScreenshot()" style="z-index:600"></div>
+  <div id="screenshot-viewer" style="
+    display:none; position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%); z-index:700;
+    background:#fff; border-radius:10px; padding:12px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4); max-width:90vw; max-height:90vh;
+  ">
+    <button onclick="closeScreenshot()" style="
+      position:absolute; top:8px; right:8px;
+      background:#dc3545; color:#fff; border:none; border-radius:50%;
+      width:28px; height:28px; cursor:pointer; font-size:0.9rem;
+    ">✕</button>
+    <img id="screenshot-full" src="" alt="Payment screenshot" style="max-width:80vw; max-height:80vh; display:block;" />
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       ADD / EDIT DISCOUNT MODAL
+  ══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="discount-modal-overlay" onclick="closeDiscountModal()"></div>
+  <div class="checkout-modal" id="discount-modal">
+    <div class="modal-header">
+      <h2 id="discount-modal-title">Add Discount</h2>
+      <button class="cart-close-btn" onclick="closeDiscountModal()">✕</button>
+    </div>
+    <form id="discount-form" onsubmit="saveDiscount(event)" style="padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
+      <input type="hidden" id="discount-id" value="" />
+
+      <div class="modal-form-group">
+        <label for="discount-name">Discount Code / Name</label>
+        <input type="text" id="discount-name" placeholder="e.g. SUMMER10" required />
+        <small>Customers will see this name to choose their discount.</small>
+      </div>
+
+      <div class="modal-form-group">
+        <label for="discount-type">Discount Type</label>
+        <select id="discount-type" required>
+          <option value="percent">Percent (%) — e.g. 10% off</option>
+          <option value="fixed">Fixed Amount (₱) — e.g. ₱50 off</option>
+        </select>
+      </div>
+
+      <div class="modal-form-group">
+        <label for="discount-value" id="discount-value-label">Discount Value</label>
+        <input type="number" id="discount-value" placeholder="e.g. 10" min="0" step="0.01" required />
+      </div>
+
+      <div id="discount-form-error" class="error-box" style="display:none"></div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="discount-save-btn">Save Discount</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeDiscountModal()">Cancel</button>
+    </form>
+  </div>
+
+  <script src="js/admin.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — BlazeUp</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <a href="index.html" class="nav-logo">
+      <img src="assets/logo.png" alt="BlazeUp Logo" class="logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Shop</a></li>
+      <li id="nav-dashboard" style="display:none"><a href="dashboard.html" class="active">Dashboard</a></li>
+      <li id="nav-admin" style="display:none"><a href="admin.html">Admin</a></li>
+      <li id="nav-login"><a href="login.html">Login</a></li>
+      <li id="nav-register"><a href="register.html">Register</a></li>
+      <li id="nav-logout" style="display:none">
+        <a href="#" onclick="logout()">Logout</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ══════════════════════════════════════════
+       DASHBOARD PAGE
+       This page loads user data from /api/me
+       and fills in the placeholders below
+  ══════════════════════════════════════════ -->
+  <main class="dashboard-page">
+
+    <!-- Loading state shown while fetching data -->
+    <div id="loading" class="loading-state">
+      <p>Loading your dashboard...</p>
+    </div>
+
+    <!-- Dashboard content — hidden until data loads -->
+    <div id="dashboard-content" style="display:none">
+
+      <!-- Welcome Banner -->
+      <section class="dashboard-hero">
+        <div>
+          <h1>Welcome back, <span id="user-username">...</span>!</h1>
+          <p>Here's your account overview</p>
+        </div>
+      </section>
+
+      <!-- Stats Cards Row -->
+      <section class="stats-grid">
+
+        <!-- Card 1: Referral Code -->
+        <div class="stat-card">
+          <div class="stat-icon">🎫</div>
+          <div class="stat-body">
+            <p class="stat-label">Your Referral Code</p>
+            <!-- This gets filled in by JavaScript -->
+            <p class="stat-value code-display" id="user-referral-code">---</p>
+            <button class="btn btn-small" onclick="copyCode()">Copy Code</button>
+          </div>
+        </div>
+
+        <!-- Card 2: Referral Count -->
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-body">
+            <p class="stat-label">Friends Referred</p>
+            <p class="stat-value" id="user-referral-count">0</p>
+            <p class="stat-sub">people used your code</p>
+          </div>
+        </div>
+
+        <!-- Card 3: Member Since -->
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-body">
+            <p class="stat-label">Member Since</p>
+            <p class="stat-value" id="user-created-at">---</p>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Account Info Section -->
+      <section class="dashboard-section">
+        <h2>Account Details</h2>
+        <div class="info-card">
+          <div class="info-row">
+            <span class="info-label">Username</span>
+            <span class="info-value" id="info-username">---</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Email</span>
+            <span class="info-value" id="info-email">---</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Referred By</span>
+            <span class="info-value" id="info-referred-by">---</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Referral Share Section -->
+      <section class="dashboard-section">
+        <h2>Share Your Referral Link</h2>
+        <div class="referral-share-card">
+          <p>Share this link with friends. When they register using your code, your referral count goes up!</p>
+          <div class="share-box">
+            <input type="text" id="referral-link" readonly />
+            <button class="btn btn-primary" onclick="copyLink()">Copy Link</button>
+          </div>
+          <div id="copy-feedback" class="copy-feedback" style="display:none">
+            Copied to clipboard!
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="js/main.js"></script>
+
+</body>
+</html>

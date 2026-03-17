@@ -1,0 +1,24 @@
+[
+  {
+    "id": "1773745749857",
+    "username": "BlaizeUp",
+    "email": "jvmarte20@gmail.com",
+    "password": "$2a$10$nmo/vDI/E1zgxiTI8B4Hh.lx92rWOJBRraJ9m0jB/l2A3.tETUOTC",
+    "isAdmin": true,
+    "referralCode": "JQY30JYP",
+    "referralCount": 0,
+    "referredBy": null,
+    "createdAt": "2026-03-17T11:09:09.860Z"
+  },
+  {
+    "id": "1773753622347",
+    "username": "Regine",
+    "email": "regine@gmail.com",
+    "password": "$2a$10$AqDPJNjtZFb0trPPgbDjS.U6F85.eRxdBc4Ylgi1yIZOfBMB0tHdy",
+    "isAdmin": false,
+    "referralCode": "2VHO5UAY",
+    "referralCount": 0,
+    "referredBy": null,
+    "createdAt": "2026-03-17T13:20:22.350Z"
+  }
+]

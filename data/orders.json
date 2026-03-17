@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ord_1773776720257",
+    "customerName": "jv marte",
+    "contact": "09513219802",
+    "address": "new buswang",
+    "items": [
+      {
+        "name": "kush — 14g",
+        "basePrice": 9800,
+        "price": 9800,
+        "image": "assets/product1.jpg",
+        "qty": 1,
+        "tiers": []
+      }
+    ],
+    "total": 9800,
+    "paymentScreenshot": "uploads/payment_1773776720212.png",
+    "status": "pending",
+    "createdAt": "2026-03-17T19:45:20.258Z"
+  },
+  {
+    "id": "ord_1773776837985",
+    "customerName": "regine",
+    "contact": "0912354689",
+    "address": "asdasd",
+    "items": [
+      {
+        "name": "kush — 14g",
+        "basePrice": 9800,
+        "price": 9800,
+        "image": "assets/product1.jpg",
+        "qty": 1,
+        "tiers": []
+      }
+    ],
+    "total": 9800,
+    "paymentScreenshot": "uploads/payment_1773776837978.png",
+    "status": "pending",
+    "createdAt": "2026-03-17T19:47:17.985Z"
+  }
+]

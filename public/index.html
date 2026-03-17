@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlazeUp — Clothing Store</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <a href="index.html" class="nav-logo">
+      <img src="assets/logo.png" alt="BlazeUp Logo" class="logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html" class="active">Shop</a></li>
+      <li id="nav-dashboard" style="display:none"><a href="dashboard.html">Dashboard</a></li>
+      <li id="nav-admin" style="display:none"><a href="admin.html">Admin</a></li>
+      <li id="nav-login"><a href="login.html">Login</a></li>
+      <li id="nav-register"><a href="register.html">Register</a></li>
+      <li id="nav-logout" style="display:none"><a href="#" onclick="logout()">Logout</a></li>
+      <li>
+        <button class="cart-icon-btn" onclick="openCart()">
+          🛒
+          <span class="cart-badge" id="cart-badge" style="display:none">0</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Fresh Styles, <span>Every Season</span></h1>
+      <p>Discover our new collection of modern, everyday clothing.</p>
+      <a href="#products-grid" class="btn btn-primary">Shop Now</a>
+    </div>
+  </section>
+
+  <!-- PRODUCTS — cards are loaded from /api/products by main.js -->
+  <section class="products-section">
+    <h2 class="section-title">Featured Items</h2>
+    <p class="section-subtitle">Our most popular pieces this season</p>
+    <div class="products-grid" id="products-grid">
+      <!-- Filled by loadProducts() in main.js -->
+      <p class="products-loading">Loading products...</p>
+    </div>
+  </section>
+
+  <!-- REFERRAL BANNER -->
+  <section class="referral-banner">
+    <div class="referral-content">
+      <h2>Refer Friends, Earn Rewards</h2>
+      <p>Sign up and share your referral code. Every friend who joins counts!</p>
+      <a href="dashboard.html" class="btn btn-light">Get Your Code</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>&copy; 2024 BlazeUp. All rights reserved.</p>
+  </footer>
+
+  <!-- CART SIDEBAR -->
+  <div class="cart-overlay" id="cart-overlay" onclick="closeCart()"></div>
+  <div class="cart-sidebar" id="cart-sidebar">
+    <div class="cart-header">
+      <h2>Your Cart</h2>
+      <button class="cart-close-btn" onclick="closeCart()">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items"></div>
+    <div class="cart-footer">
+      <div class="cart-discount-row" id="cart-discount-row" style="display:none">
+        <label for="cart-discount-select">🏷️ Discount:</label>
+        <select id="cart-discount-select" onchange="applyDiscount()">
+          <option value="">No discount</option>
+        </select>
+      </div>
+      <div class="cart-totals">
+        <div class="cart-total-line">Subtotal: <span id="cart-subtotal">₱0.00</span></div>
+        <div class="cart-total-line discount-line" id="cart-discount-line" style="display:none">
+          Discount: <span id="cart-discount-amount" style="color:var(--success)">-₱0.00</span>
+        </div>
+        <div class="cart-total-line cart-grand-total">Total: <span id="cart-total">₱0.00</span></div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="checkout()">Checkout</button>
+      <button class="btn btn-outline btn-full" onclick="closeCart()">Keep Shopping</button>
+    </div>
+  </div>
+
+  <!-- CHECKOUT MODAL -->
+  <div class="modal-overlay" id="checkout-overlay" onclick="closeCheckoutModal()"></div>
+  <div class="checkout-modal" id="checkout-modal">
+
+    <div class="modal-header">
+      <h2>Checkout</h2>
+      <button class="cart-close-btn" onclick="closeCheckoutModal()">✕</button>
+    </div>
+
+    <div id="checkout-summary"></div>
+
+    <form id="checkout-form" onsubmit="submitOrder(event)">
+
+      <div class="modal-form-group">
+        <label for="order-name">Full Name</label>
+        <input type="text" id="order-name" placeholder="Juan Dela Cruz" required />
+      </div>
+
+      <div class="modal-form-group">
+        <label for="order-contact">Contact Number</label>
+        <input type="tel" id="order-contact" placeholder="09XX-XXX-XXXX" required />
+      </div>
+
+      <div class="modal-form-group">
+        <label for="order-address">Delivery Address</label>
+        <textarea id="order-address" placeholder="Street, Barangay, City" rows="3" required></textarea>
+      </div>
+
+      <!-- GCash payment screenshot upload -->
+      <div class="modal-form-group">
+        <label for="order-screenshot">
+          GCash Payment Screenshot <span style="color:#dc3545">*</span>
+        </label>
+        <div class="file-upload-box" onclick="document.getElementById('order-screenshot').click()">
+          <p id="file-upload-text">📎 Tap to upload your GCash screenshot</p>
+          <img id="screenshot-preview" src="" alt="" style="display:none" />
+        </div>
+        <input
+          type="file"
+          id="order-screenshot"
+          accept="image/*"
+          required
+          style="display:none"
+          onchange="previewScreenshot(this)"
+        />
+        <small>Send your GCash payment first, then upload the screenshot here.</small>
+      </div>
+
+      <div class="gcash-info">
+        <p>💚 <strong>Payment via GCash</strong></p>
+        <p>Send your payment to our GCash number before confirming. We will contact you to confirm delivery.</p>
+      </div>
+
+      <div id="checkout-error" class="error-box" style="display:none"></div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="confirm-order-btn">
+        Confirm Order
+      </button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeCheckoutModal()">
+        Cancel
+      </button>
+
+    </form>
+
+    <div id="order-confirmation" style="display:none; padding: 8px;"></div>
+
+  </div>
+
+  <script src="js/main.js"></script>
+
+</body>
+</html>

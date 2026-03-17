@@ -1,0 +1,45 @@
+[
+  {
+    "id": "p1773760487839",
+    "name": "Montana",
+    "description": "",
+    "price": 900,
+    "priceTiers": [
+      {
+        "minQty": 7,
+        "price": 800
+      },
+      {
+        "minQty": 14,
+        "price": 678.57
+      },
+      {
+        "minQty": 28,
+        "price": 589.27
+      }
+    ],
+    "image": "assets/product_1773760487794.png"
+  },
+  {
+    "id": "p1773769973553",
+    "name": "kush",
+    "description": "",
+    "price": 1000,
+    "priceTiers": [],
+    "image": "assets/product1.jpg",
+    "variants": [
+      {
+        "name": "3g",
+        "price": 2700
+      },
+      {
+        "name": "7g",
+        "price": 5600
+      },
+      {
+        "name": "14g",
+        "price": 9800
+      }
+    ]
+  }
+]
