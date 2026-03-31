@@ -1,22 +1,24 @@
 // ============================================================
-// middleware/upload.js — Secure multer configuration
+// middleware/upload.js — Multer + Supabase Storage
+// Files are held in memory by multer, then pushed to Supabase.
+// Nothing is written to the local disk, so images survive
+// Render restarts.
 // ============================================================
 
-const multer = require('multer');
-const path   = require('path');
-const crypto = require('crypto');
+const multer  = require('multer');
+const path    = require('path');
+const crypto  = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png']);
 const ALLOWED_EXT  = new Set(['.jpg', '.jpeg', '.png']);
 const MAX_BYTES    = 10 * 1024 * 1024; // 10 MB
 
-/**
- * Validate file by both declared MIME type and file extension.
- *
- * Note for production: consider adding the `file-type` package to
- * inspect actual magic bytes instead of trusting multer's MIME
- * detection (which comes from the Content-Type the client sends).
- */
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
 function fileFilter(req, file, cb) {
   if (!ALLOWED_MIME.has(file.mimetype)) {
     return cb(Object.assign(new Error('Only JPG and PNG images are allowed.'), { status: 400 }));
@@ -28,55 +30,34 @@ function fileFilter(req, file, cb) {
   cb(null, true);
 }
 
-/** Build a diskStorage that saves files with UUID-based names. */
-function makeStorage(dest) {
-  return multer.diskStorage({
-    destination: dest,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      // UUID filename prevents path traversal and enumeration attacks
-      cb(null, `${crypto.randomUUID()}${ext}`);
-    }
-  });
+/**
+ * Upload a multer file (from memoryStorage) to a Supabase Storage bucket.
+ * Returns the public URL of the uploaded file.
+ */
+async function uploadToSupabase(file, bucket) {
+  const ext      = path.extname(file.originalname).toLowerCase();
+  const filename = `${crypto.randomUUID()}${ext}`;
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(filename, file.buffer, { contentType: file.mimetype, upsert: false });
+
+  if (error) {
+    throw Object.assign(new Error(`Storage upload failed: ${error.message}`), { status: 500 });
+  }
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(filename);
+  return data.publicUrl;
 }
 
-const UPLOADS_DIR = path.join(__dirname, '../../public/uploads');
-const ASSETS_DIR  = path.join(__dirname, '../../public/assets');
+// All three multer instances use memory storage — no disk writes.
+const memStorage = multer.memoryStorage();
+const opts = { storage: memStorage, limits: { fileSize: MAX_BYTES }, fileFilter };
 
-// For payment proof screenshots
-const uploadPayment = multer({
-  storage: makeStorage(UPLOADS_DIR),
-  limits:  { fileSize: MAX_BYTES },
-  fileFilter
-});
+const uploadPayment = multer(opts);
+const uploadProduct = multer(opts);
+const uploadQR      = multer(opts);
 
-// For product images
-const uploadProduct = multer({
-  storage: makeStorage(ASSETS_DIR),
-  limits:  { fileSize: MAX_BYTES },
-  fileFilter
-});
-
-// For the payment QR code — always overwrites with the same filename
-// so the frontend can reference a stable path.
-const uploadQR = multer({
-  storage: multer.diskStorage({
-    destination: ASSETS_DIR,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `qr-payment${ext}`);
-    }
-  }),
-  limits:    { fileSize: MAX_BYTES },
-  fileFilter
-});
-
-/**
- * Error handler for multer upload errors.
- * Use as the 4-argument error middleware directly after multer middleware.
- *
- *   router.post('/upload', upload.single('file'), handleUploadError, handler);
- */
 function handleUploadError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
     const msg = err.code === 'LIMIT_FILE_SIZE'
@@ -90,4 +71,4 @@ function handleUploadError(err, req, res, next) {
   next(err);
 }
 
-module.exports = { uploadPayment, uploadProduct, uploadQR, handleUploadError };
+module.exports = { uploadPayment, uploadProduct, uploadQR, handleUploadError, uploadToSupabase };

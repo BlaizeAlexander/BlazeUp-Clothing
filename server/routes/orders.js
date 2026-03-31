@@ -5,7 +5,7 @@
 const express = require('express');
 const { query, getClient } = require('../db');
 const { requireLogin, requireAdmin, optionalLogin } = require('../middleware/auth');
-const { uploadPayment, handleUploadError } = require('../middleware/upload');
+const { uploadPayment, handleUploadError, uploadToSupabase } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -82,7 +82,7 @@ router.post('/orders', optionalLogin,
 
     const userId = req.user ? req.user.id : null;
     const pts    = parseInt(pointsUsed, 10) || 0;
-    const paymentScreenshot = `uploads/${req.file.filename}`;
+    const paymentScreenshot = await uploadToSupabase(req.file, 'payments');
 
     const client = await getClient();
     try {

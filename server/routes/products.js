@@ -5,7 +5,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware/auth');
-const { uploadProduct, handleUploadError } = require('../middleware/upload');
+const { uploadProduct, handleUploadError, uploadToSupabase } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ router.post('/admin/products', requireLogin, requireAdmin,
     if (!name || !price) return res.status(400).json({ error: 'Name and price are required.' });
 
     const images = req.files && req.files.length
-      ? req.files.map(f => `assets/${f.filename}`)
+      ? await Promise.all(req.files.map(f => uploadToSupabase(f, 'products')))
       : [];
     const image = images[0] || '';
 
@@ -93,7 +93,7 @@ router.put('/admin/products/:id', requireLogin, requireAdmin,
 
       const product = existing.rows[0];
       const newFiles = req.files && req.files.length
-        ? req.files.map(f => `assets/${f.filename}`)
+        ? await Promise.all(req.files.map(f => uploadToSupabase(f, 'products')))
         : [];
       let kept = [];
       if (existingImages !== undefined) {

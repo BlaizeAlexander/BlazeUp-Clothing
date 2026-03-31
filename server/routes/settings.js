@@ -5,7 +5,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware/auth');
-const { uploadQR, handleUploadError } = require('../middleware/upload');
+const { uploadQR, handleUploadError, uploadToSupabase } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -56,7 +56,7 @@ router.post('/admin/settings/qr', requireLogin, requireAdmin,
   },
   async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-    const qrPath = `assets/${req.file.filename}`;
+    const qrPath = await uploadToSupabase(req.file, 'products');
     try {
       await query('UPDATE settings SET payment_qr_code_path = $1 WHERE id = 1', [qrPath]);
       res.json({ success: true, path: qrPath });
