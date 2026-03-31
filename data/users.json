@@ -1,14 +1,16 @@
 [
   {
     "id": "1773745749857",
-    "username": "BlaizeUp",
+    "username": "jvmarte",
     "email": "jvmarte20@gmail.com",
     "password": "$2a$10$nmo/vDI/E1zgxiTI8B4Hh.lx92rWOJBRraJ9m0jB/l2A3.tETUOTC",
     "isAdmin": true,
     "referralCode": "JQY30JYP",
     "referralCount": 0,
     "referredBy": null,
-    "createdAt": "2026-03-17T11:09:09.860Z"
+    "createdAt": "2026-03-17T11:09:09.860Z",
+    "contact": "0958989963",
+    "points": 0
   },
   {
     "id": "1773753622347",
@@ -19,6 +21,35 @@
     "referralCode": "2VHO5UAY",
     "referralCount": 0,
     "referredBy": null,
-    "createdAt": "2026-03-17T13:20:22.350Z"
+    "createdAt": "2026-03-17T13:20:22.350Z",
+    "points": 0
+  },
+  {
+    "id": "1774100286112",
+    "username": "JAZI",
+    "email": "alssdsadasd@gmail.com",
+    "password": "$2a$10$b2YIqEw6Hb5vHbSYsKZKGOIlN8cLID9zBH9zR910B5rwmJJHzyL.6",
+    "contact": "098777789898",
+    "pinnedLocation": "",
+    "points": 0,
+    "isAdmin": false,
+    "referralCode": "9ET5ZBVU",
+    "referralCount": 0,
+    "referredBy": null,
+    "createdAt": "2026-03-21T13:38:06.118Z"
+  },
+  {
+    "id": "1774988528673",
+    "username": "Blaize",
+    "email": "blaize.alexander@yahoo.com",
+    "password": "$2a$10$7dz7RPn3wvsBh3ebf9djOOoOvqr0TNkTXH2qx5xB1v4puSZSdUH06",
+    "contact": "09325659265",
+    "pinnedLocation": "",
+    "points": 0,
+    "isAdmin": false,
+    "referralCode": "UCG09NYL",
+    "referralCount": 0,
+    "referredBy": null,
+    "createdAt": "2026-03-31T20:22:08.675Z"
   }
 ]

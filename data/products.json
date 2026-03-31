@@ -3,7 +3,7 @@
     "id": "p1773760487839",
     "name": "Montana",
     "description": "",
-    "price": 900,
+    "price": 2600,
     "priceTiers": [
       {
         "minQty": 7,
@@ -18,7 +18,14 @@
         "price": 589.27
       }
     ],
-    "image": "assets/product_1773760487794.png"
+    "images": [
+      "assets/product_1774969215339.png"
+    ],
+    "image": "assets/product_1774969215339.png",
+    "costPrice": 1300,
+    "stockQuantity": 18,
+    "category": "",
+    "variants": []
   },
   {
     "id": "p1773769973553",
@@ -26,7 +33,10 @@
     "description": "",
     "price": 1000,
     "priceTiers": [],
-    "image": "assets/product1.jpg",
+    "images": [
+      "assets/product_1774969247087.png"
+    ],
+    "image": "assets/product_1774969247087.png",
     "variants": [
       {
         "name": "3g",
@@ -40,6 +50,65 @@
         "name": "14g",
         "price": 9800
       }
-    ]
+    ],
+    "costPrice": 446.42,
+    "stockQuantity": 27,
+    "category": ""
+  },
+  {
+    "id": "p1773836637805",
+    "name": "BlazeUp",
+    "description": "askdaskd",
+    "price": 650,
+    "priceTiers": [],
+    "variants": [
+      {
+        "name": "small",
+        "price": 900
+      },
+      {
+        "name": "medium",
+        "price": 900
+      },
+      {
+        "name": "large",
+        "price": 900
+      }
+    ],
+    "images": [
+      "assets/product_1774969260933.png"
+    ],
+    "image": "assets/product_1774969260933.png",
+    "category": "",
+    "costPrice": 400,
+    "stockQuantity": 20
+  },
+  {
+    "id": "p1773837808229",
+    "name": "clothing",
+    "description": "asjda",
+    "price": 650,
+    "priceTiers": [],
+    "variants": [
+      {
+        "name": "small",
+        "price": 900
+      },
+      {
+        "name": "medium",
+        "price": 900
+      },
+      {
+        "name": "large",
+        "price": 900
+      }
+    ],
+    "images": [
+      "assets/product_1774969682213.png"
+    ],
+    "image": "assets/product_1774969682213.png",
+    "costPrice": 400,
+    "stockQuantity": 19,
+    "category": ""
   }
 ]

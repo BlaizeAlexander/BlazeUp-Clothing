@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — BlazeUp</title>
+  <title>My Profile — BlazeUp</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -15,7 +15,7 @@
     </a>
     <ul class="nav-links">
       <li><a href="index.html">Shop</a></li>
-      <li id="nav-dashboard" style="display:none"><a href="dashboard.html" class="active">Dashboard</a></li>
+      <li id="nav-dashboard" style="display:none"><a href="dashboard.html" class="active">Profile</a></li>
       <li id="nav-admin" style="display:none"><a href="admin.html">Admin</a></li>
       <li id="nav-login"><a href="login.html">Login</a></li>
       <li id="nav-register"><a href="register.html">Register</a></li>
@@ -26,67 +26,74 @@
   </nav>
 
   <!-- ══════════════════════════════════════════
-       DASHBOARD PAGE
-       This page loads user data from /api/me
-       and fills in the placeholders below
+       PROFILE PAGE
+       Loads user data from /api/me and order
+       history from /api/orders/my
   ══════════════════════════════════════════ -->
   <main class="dashboard-page">
 
-    <!-- Loading state shown while fetching data -->
+    <!-- Loading spinner -->
     <div id="loading" class="loading-state">
-      <p>Loading your dashboard...</p>
+      <p>Loading your profile...</p>
     </div>
 
-    <!-- Dashboard content — hidden until data loads -->
+    <!-- All content — hidden until data loads -->
     <div id="dashboard-content" style="display:none">
 
       <!-- Welcome Banner -->
       <section class="dashboard-hero">
         <div>
           <h1>Welcome back, <span id="user-username">...</span>!</h1>
-          <p>Here's your account overview</p>
+          <p>Here's your BlazeUp account overview</p>
         </div>
       </section>
 
-      <!-- Stats Cards Row -->
+      <!-- ── Stats Cards Row ─────────────────────── -->
       <section class="stats-grid">
 
-        <!-- Card 1: Referral Code -->
+        <!-- Card 1: Points Balance -->
+        <div class="stat-card stat-card-points">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-body">
+            <p class="stat-label">Points Balance</p>
+            <p class="stat-value points-value" id="user-points">0</p>
+            <p class="stat-sub">earn more by shopping & referring</p>
+          </div>
+        </div>
+
+        <!-- Card 2: Referral Code -->
         <div class="stat-card">
           <div class="stat-icon">🎫</div>
           <div class="stat-body">
             <p class="stat-label">Your Referral Code</p>
-            <!-- This gets filled in by JavaScript -->
             <p class="stat-value code-display" id="user-referral-code">---</p>
             <button class="btn btn-small" onclick="copyCode()">Copy Code</button>
           </div>
         </div>
 
-        <!-- Card 2: Referral Count -->
+        <!-- Card 3: Friends Referred -->
         <div class="stat-card">
           <div class="stat-icon">👥</div>
           <div class="stat-body">
             <p class="stat-label">Friends Referred</p>
             <p class="stat-value" id="user-referral-count">0</p>
-            <p class="stat-sub">people used your code</p>
-          </div>
-        </div>
-
-        <!-- Card 3: Member Since -->
-        <div class="stat-card">
-          <div class="stat-icon">📅</div>
-          <div class="stat-body">
-            <p class="stat-label">Member Since</p>
-            <p class="stat-value" id="user-created-at">---</p>
+            <p class="stat-sub">+50 pts per referral</p>
           </div>
         </div>
 
       </section>
 
-      <!-- Account Info Section -->
+      <!-- ── Account Info + Inline Edit ──────────── -->
       <section class="dashboard-section">
-        <h2>Account Details</h2>
-        <div class="info-card">
+        <div class="section-header-row">
+          <h2>Account Details</h2>
+          <button class="btn btn-small" id="edit-profile-btn" onclick="toggleProfileEdit()">
+            ✏️ Edit Profile
+          </button>
+        </div>
+
+        <!-- View mode -->
+        <div id="profile-view" class="info-card">
           <div class="info-row">
             <span class="info-label">Username</span>
             <span class="info-value" id="info-username">---</span>
@@ -96,17 +103,47 @@
             <span class="info-value" id="info-email">---</span>
           </div>
           <div class="info-row">
+            <span class="info-label">Contact Number</span>
+            <span class="info-value" id="info-contact">---</span>
+          </div>
+          <div class="info-row">
             <span class="info-label">Referred By</span>
             <span class="info-value" id="info-referred-by">---</span>
           </div>
+          <div class="info-row">
+            <span class="info-label">Member Since</span>
+            <span class="info-value" id="user-created-at">---</span>
+          </div>
         </div>
+
+        <!-- Edit mode (hidden by default) -->
+        <form id="profile-form" onsubmit="updateProfile(event)" style="display:none;margin-top:16px">
+          <div class="form-group">
+            <label for="edit-username">Username</label>
+            <input type="text" id="edit-username" placeholder="Your username" />
+          </div>
+          <div class="form-group">
+            <label for="edit-contact">Contact Number</label>
+            <input type="tel" id="edit-contact" placeholder="09XX-XXX-XXXX" />
+          </div>
+
+          <div id="profile-success" class="success-box" style="display:none">
+            Profile updated successfully!
+          </div>
+          <div id="profile-error" class="error-box" style="display:none"></div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary" id="profile-save-btn">Save Changes</button>
+            <button type="button" class="btn btn-outline" onclick="toggleProfileEdit()">Cancel</button>
+          </div>
+        </form>
       </section>
 
-      <!-- Referral Share Section -->
+      <!-- ── Referral Share ────────────────────────── -->
       <section class="dashboard-section">
         <h2>Share Your Referral Link</h2>
         <div class="referral-share-card">
-          <p>Share this link with friends. When they register using your code, your referral count goes up!</p>
+          <p>Share this link with friends. When they register using your code, you earn <strong>50 points</strong>!</p>
           <div class="share-box">
             <input type="text" id="referral-link" readonly />
             <button class="btn btn-primary" onclick="copyLink()">Copy Link</button>
@@ -115,6 +152,34 @@
             Copied to clipboard!
           </div>
         </div>
+      </section>
+
+      <!-- ── Points Info ──────────────────────────── -->
+      <section class="dashboard-section">
+        <h2>⭐ How to Earn Points</h2>
+        <div class="points-how-grid">
+          <div class="points-how-card">
+            <div class="points-how-icon">🛒</div>
+            <div>
+              <p class="points-how-title">Purchase Reward</p>
+              <p class="points-how-desc">Earn <strong>1 point</strong> for every <strong>₱100</strong> you spend on confirmed orders.</p>
+            </div>
+          </div>
+          <div class="points-how-card">
+            <div class="points-how-icon">👥</div>
+            <div>
+              <p class="points-how-title">Referral Reward</p>
+              <p class="points-how-desc">Earn <strong>50 points</strong> for every friend who signs up using your referral code.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Order History ─────────────────────────── -->
+      <section class="dashboard-section">
+        <h2>Order History</h2>
+        <div id="orders-loading" style="color:var(--text-light);font-size:0.9rem">Loading orders...</div>
+        <div id="orders-list" style="display:none"></div>
       </section>
 
     </div>

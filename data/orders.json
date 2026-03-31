@@ -16,7 +16,7 @@
     ],
     "total": 9800,
     "paymentScreenshot": "uploads/payment_1773776720212.png",
-    "status": "pending",
+    "status": "delivered",
     "createdAt": "2026-03-17T19:45:20.258Z"
   },
   {
@@ -36,7 +36,87 @@
     ],
     "total": 9800,
     "paymentScreenshot": "uploads/payment_1773776837978.png",
-    "status": "pending",
+    "status": "delivered",
     "createdAt": "2026-03-17T19:47:17.985Z"
+  },
+  {
+    "id": "ord_1773836222784",
+    "userId": "1773745749857",
+    "customerName": "jvmarte",
+    "contact": "095123123123",
+    "address": "ajsdklsa",
+    "items": [
+      {
+        "name": "kush",
+        "basePrice": 2700,
+        "price": 2700,
+        "image": "assets/product1.jpg",
+        "qty": 1,
+        "tiers": []
+      }
+    ],
+    "total": 2700,
+    "paymentScreenshot": "uploads/payment_1773836222768.png",
+    "status": "confirmed",
+    "createdAt": "2026-03-18T12:17:02.784Z"
+  },
+  {
+    "id": "ord_1773836457055",
+    "userId": "1773753622347",
+    "customerName": "jsad",
+    "contact": "12931203",
+    "address": "sldadad",
+    "items": [
+      {
+        "name": "Montana",
+        "basePrice": 900,
+        "price": 900,
+        "image": "assets/product_1773760487794.png",
+        "qty": 2,
+        "tiers": [
+          {
+            "minQty": 7,
+            "price": 800
+          },
+          {
+            "minQty": 14,
+            "price": 678.57
+          },
+          {
+            "minQty": 28,
+            "price": 589.27
+          }
+        ]
+      }
+    ],
+    "total": 1800,
+    "paymentScreenshot": "uploads/payment_1773836457042.png",
+    "status": "confirmed",
+    "createdAt": "2026-03-18T12:20:57.056Z"
+  },
+  {
+    "id": "ord_1774100130929",
+    "userId": "1773745749857",
+    "customerName": "MARK JASSY",
+    "contact": "0958989963",
+    "address": "BAKHAW",
+    "items": [
+      {
+        "name": "clothing — medium",
+        "basePrice": 900,
+        "price": 900,
+        "image": "assets/product_1773837808132.png",
+        "qty": 1,
+        "tiers": [],
+        "productId": "p1773837808229",
+        "costAtSale": 400,
+        "sellingPrice": 900
+      }
+    ],
+    "total": 900,
+    "pointsUsed": 0,
+    "paymentScreenshot": "uploads/payment_1774100130820.png",
+    "status": "confirmed",
+    "createdAt": "2026-03-21T13:35:30.929Z"
   }
 ]

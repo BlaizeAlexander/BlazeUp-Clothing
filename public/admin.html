@@ -23,18 +23,15 @@
   <!-- ADMIN LAYOUT -->
   <div class="admin-page">
 
-    <!-- Page title -->
     <div class="admin-title-bar">
       <h1>Admin Dashboard</h1>
-      <p>Manage your products and view customer orders.</p>
+      <p>Manage your store — products, orders, customers, finances, and settings.</p>
     </div>
 
     <!-- Tab buttons -->
     <div class="admin-tabs">
-      <button class="admin-tab active" id="tab-products" onclick="switchTab('products')">
-        🛍️ Products
-      </button>
-      <button class="admin-tab" id="tab-orders" onclick="switchTab('orders')">
+      <button class="admin-tab active" id="tab-products"  onclick="switchTab('products')">🛍️ Products</button>
+      <button class="admin-tab" id="tab-orders"    onclick="switchTab('orders')">
         📦 Orders
         <span class="order-count-badge" id="order-count-badge" style="display:none">0</span>
       </button>
@@ -42,44 +39,49 @@
         👥 Customers
         <span class="order-count-badge" id="customer-count-badge" style="display:none">0</span>
       </button>
-      <button class="admin-tab" id="tab-discounts" onclick="switchTab('discounts')">
-        🏷️ Discounts
-      </button>
+      <button class="admin-tab" id="tab-discounts" onclick="switchTab('discounts')">🏷️ Discounts</button>
+      <button class="admin-tab" id="tab-finance"   onclick="switchTab('finance')">📊 Finance</button>
+      <button class="admin-tab" id="tab-settings"  onclick="switchTab('settings')">⚙️ Settings</button>
     </div>
+
 
     <!-- ══════════════════════════════════════════
          PRODUCTS TAB
     ══════════════════════════════════════════ -->
     <div id="panel-products" class="admin-panel">
-
       <div class="admin-panel-header">
         <h2>All Products</h2>
         <button class="btn btn-primary" onclick="openProductModal()">+ Add New Product</button>
       </div>
-
       <div id="products-table-wrap">
-        <!-- Filled by loadAdminProducts() in admin.js -->
         <p class="admin-loading">Loading products...</p>
       </div>
+    </div>
 
+    <!-- ══════════════════════════════════════════
+         ORDERS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-orders" class="admin-panel" style="display:none">
+      <div class="admin-panel-header">
+        <h2>Customer Orders</h2>
+        <button class="btn btn-outline" onclick="loadAdminOrders()">↻ Refresh</button>
+      </div>
+      <div id="orders-table-wrap">
+        <p class="admin-loading">Loading orders...</p>
+      </div>
     </div>
 
     <!-- ══════════════════════════════════════════
          CUSTOMERS TAB
     ══════════════════════════════════════════ -->
     <div id="panel-customers" class="admin-panel" style="display:none">
-
       <div class="admin-panel-header">
         <h2>Registered Customers</h2>
         <button class="btn btn-outline" onclick="loadAdminCustomers()">↻ Refresh</button>
       </div>
-
-      <!-- Customer list — clicking a row expands the detail card -->
       <div id="customers-list-wrap">
         <p class="admin-loading">Loading customers...</p>
       </div>
-
-      <!-- Customer detail card — shown when a row is clicked -->
       <div id="customer-detail" style="display:none" class="customer-detail-card">
         <div class="customer-detail-header">
           <h3 id="detail-username"></h3>
@@ -87,157 +89,330 @@
         </div>
         <div id="customer-detail-body"></div>
       </div>
-
     </div>
 
     <!-- ══════════════════════════════════════════
          DISCOUNTS TAB
     ══════════════════════════════════════════ -->
     <div id="panel-discounts" class="admin-panel" style="display:none">
-
       <div class="admin-panel-header">
         <h2>Discount Codes</h2>
         <button class="btn btn-primary" onclick="openDiscountModal()">+ Add Discount</button>
       </div>
-
       <div id="discounts-table-wrap">
         <p class="admin-loading">Loading discounts...</p>
       </div>
-
     </div>
 
     <!-- ══════════════════════════════════════════
-         ORDERS TAB
+         FINANCE TAB
     ══════════════════════════════════════════ -->
-    <div id="panel-orders" class="admin-panel" style="display:none">
+    <div id="panel-finance" class="admin-panel" style="display:none">
+
+      <!-- Finance sub-navigation -->
+      <div class="finance-subnav">
+        <button class="fin-tab active" id="fin-tab-overview"    onclick="switchFinTab('overview')">📈 Overview</button>
+        <button class="fin-tab" id="fin-tab-inventory"  onclick="switchFinTab('inventory')">📦 Inventory</button>
+        <button class="fin-tab" id="fin-tab-prices"     onclick="switchFinTab('prices')">💲 Prices</button>
+        <button class="fin-tab" id="fin-tab-receivables" onclick="switchFinTab('receivables')">🧾 Receivables</button>
+        <button class="fin-tab" id="fin-tab-payables"   onclick="switchFinTab('payables')">📤 Payables</button>
+        <button class="fin-tab" id="fin-tab-expenses"   onclick="switchFinTab('expenses')">💸 Expenses</button>
+      </div>
+
+      <!-- ── Finance: Overview ──────────────────── -->
+      <div id="fin-panel-overview">
+        <div class="admin-panel-header">
+          <h2>Financial Overview</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="fin-period-select" onchange="loadFinanceOverview()"
+              style="padding:8px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:0.88rem;background:#fff;cursor:pointer">
+              <option value="thisMonth">This Month</option>
+              <option value="thisYear">This Year</option>
+              <option value="allTime" selected>All Time</option>
+            </select>
+            <button class="btn btn-outline" onclick="loadFinanceOverview()">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="fin-overview-content">
+          <p class="admin-loading">Loading overview...</p>
+        </div>
+      </div>
+
+      <!-- ── Finance: Inventory ─────────────────── -->
+      <div id="fin-panel-inventory" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Inventory Management</h2>
+          <button class="btn btn-outline" onclick="loadFinanceInventory()">↻ Refresh</button>
+        </div>
+        <div id="fin-inventory-content">
+          <p class="admin-loading">Loading inventory...</p>
+        </div>
+      </div>
+
+      <!-- ── Finance: Prices ────────────────────── -->
+      <div id="fin-panel-prices" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Product Pricing</h2>
+          <button class="btn btn-outline" onclick="loadFinancePrices()">↻ Refresh</button>
+        </div>
+        <div id="fin-prices-content">
+          <p class="admin-loading">Loading prices...</p>
+        </div>
+      </div>
+
+      <!-- ── Finance: Receivables ───────────────── -->
+      <div id="fin-panel-receivables" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Receivables</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline" onclick="syncOrdersToReceivables()">↻ Sync Orders</button>
+            <button class="btn btn-primary" onclick="openReceivableModal()">+ Add Receivable</button>
+          </div>
+        </div>
+        <div class="fin-filter-bar">
+          <div class="fin-filter-group">
+            <label>Status</label>
+            <select id="rec-filter-status" onchange="applyReceivableFilter()">
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-small" onclick="clearReceivableFilter()">Clear</button>
+        </div>
+        <div id="fin-receivables-content">
+          <p class="admin-loading">Loading receivables...</p>
+        </div>
+      </div>
+
+      <!-- ── Finance: Payables ──────────────────── -->
+      <div id="fin-panel-payables" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Payables</h2>
+          <button class="btn btn-primary" onclick="openPayableModal()">+ Add Payable</button>
+        </div>
+        <div class="fin-filter-bar">
+          <div class="fin-filter-group">
+            <label>Status</label>
+            <select id="pay-filter-status" onchange="applyPayableFilter()">
+              <option value="">All Statuses</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-small" onclick="clearPayableFilter()">Clear</button>
+        </div>
+        <div id="fin-payables-content">
+          <p class="admin-loading">Loading payables...</p>
+        </div>
+      </div>
+
+      <!-- ── Finance: Expenses ──────────────────── -->
+      <div id="fin-panel-expenses" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Expenses</h2>
+          <button class="btn btn-primary" onclick="openExpenseModal()">+ Add Expense</button>
+        </div>
+        <!-- Filter bar -->
+        <div class="fin-filter-bar">
+          <div class="fin-filter-group">
+            <label>Category</label>
+            <select id="expense-filter-cat" onchange="applyExpenseFilter()">
+              <option value="">All Categories</option>
+              <option>Supplies</option>
+              <option>Shipping</option>
+              <option>Utilities</option>
+              <option>Salaries</option>
+              <option>Marketing</option>
+              <option>Rent</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="fin-filter-group">
+            <label>From</label>
+            <input type="date" id="expense-filter-from" onchange="applyExpenseFilter()" />
+          </div>
+          <div class="fin-filter-group">
+            <label>To</label>
+            <input type="date" id="expense-filter-to" onchange="applyExpenseFilter()" />
+          </div>
+          <button class="btn btn-outline btn-small" onclick="clearExpenseFilter()">Clear</button>
+        </div>
+        <div id="fin-expenses-content">
+          <p class="admin-loading">Loading expenses...</p>
+        </div>
+      </div>
+
+    </div><!-- /panel-finance -->
+
+
+    <!-- ══════════════════════════════════════════
+         SETTINGS TAB
+    ══════════════════════════════════════════ -->
+    <div id="panel-settings" class="admin-panel" style="display:none">
 
       <div class="admin-panel-header">
-        <h2>Customer Orders</h2>
-        <button class="btn btn-outline" onclick="loadAdminOrders()">↻ Refresh</button>
+        <h2>Store Settings</h2>
       </div>
 
-      <div id="orders-table-wrap">
-        <p class="admin-loading">Loading orders...</p>
+      <!-- ── Settings: Points System ───────────── -->
+      <div class="settings-section">
+        <h3>⭐ Points System</h3>
+        <p class="settings-desc">Control how customers earn reward points.</p>
+
+        <form id="settings-points-form" onsubmit="savePointsSettings(event)">
+
+          <div class="settings-field">
+            <label class="settings-toggle-label">
+              <span>Enable Points System</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-points-enabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </label>
+            <small>When disabled, no points are awarded for purchases or referrals.</small>
+          </div>
+
+          <div class="settings-field">
+            <label>Points per ₱100 spent on a purchase</label>
+            <input type="number" id="setting-purchase-rate" min="0" step="0.1" placeholder="e.g. 1" />
+            <small>Example: 1 means 1 point per ₱100. 2 means 2 points per ₱100.</small>
+          </div>
+
+          <div class="settings-field">
+            <label>Points awarded for each successful referral</label>
+            <input type="number" id="setting-referral-pts" min="0" step="1" placeholder="e.g. 50" />
+            <small>This is added to the referrer's balance when their referral code is used.</small>
+          </div>
+
+          <div id="settings-points-msg" class="success-box" style="display:none">Settings saved!</div>
+          <button type="submit" class="btn btn-primary">Save Points Settings</button>
+
+        </form>
       </div>
 
-    </div>
+      <!-- ── Settings: QR Code ─────────────────── -->
+      <div class="settings-section">
+        <h3>💳 Payment QR Code</h3>
+        <p class="settings-desc">This QR code is shown to customers during checkout.</p>
 
-  </div>
+        <div class="qr-preview-wrap">
+          <div id="qr-preview-box">
+            <p class="admin-loading">Loading current QR code...</p>
+          </div>
+        </div>
+
+        <form id="qr-upload-form" onsubmit="uploadQRCode(event)" style="margin-top:16px">
+          <div class="modal-form-group">
+            <label>Upload New QR Code Image</label>
+            <div class="file-upload-box" onclick="document.getElementById('qr-file').click()">
+              <p id="qr-file-text">📷 Tap to choose QR image</p>
+              <img id="qr-file-preview" src="" alt="" style="display:none;max-height:120px" />
+            </div>
+            <input type="file" id="qr-file" accept="image/*" style="display:none"
+              onchange="previewQRFile(this)" />
+          </div>
+          <div id="qr-upload-msg" class="success-box" style="display:none">QR code updated!</div>
+          <button type="submit" class="btn btn-primary">Upload QR Code</button>
+        </form>
+      </div>
+
+    </div><!-- /panel-settings -->
+
+  </div><!-- /admin-page -->
+
 
   <!-- ══════════════════════════════════════════
        ADD / EDIT PRODUCT MODAL
   ══════════════════════════════════════════ -->
   <div class="modal-overlay" id="product-modal-overlay" onclick="closeProductModal()"></div>
-
   <div class="checkout-modal" id="product-modal">
     <div class="modal-header">
       <h2 id="product-modal-title">Add New Product</h2>
       <button class="cart-close-btn" onclick="closeProductModal()">✕</button>
     </div>
-
-    <form id="product-form" onsubmit="saveProduct(event)" style="padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
-
-      <!-- Hidden field: stores the product ID when editing -->
+    <div class="modal-scroll-body">
+    <form id="product-form" onsubmit="saveProduct(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px">
       <input type="hidden" id="product-id" value="" />
 
       <div class="modal-form-group">
         <label for="product-name">Product Name</label>
         <input type="text" id="product-name" placeholder="e.g. Classic White Tee" required />
       </div>
-
       <div class="modal-form-group">
         <label for="product-desc">Description</label>
         <textarea id="product-desc" placeholder="Describe the product..." rows="2"></textarea>
       </div>
-
       <div class="modal-form-group">
-        <label for="product-price">Price (₱)</label>
+        <label for="product-category">Category</label>
+        <input type="text" id="product-category" placeholder="e.g. Tops, Bottoms, Accessories" />
+      </div>
+      <div class="modal-form-group">
+        <label for="product-price">Selling Price (₱)</label>
         <input type="number" id="product-price" placeholder="e.g. 299" min="0" step="0.01" required />
+      </div>
+      <div class="modal-form-group">
+        <label for="product-cost">Cost Price (₱) <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional — for profit margin tracking)</span></label>
+        <input type="number" id="product-cost" placeholder="e.g. 150" min="0" step="0.01" />
+      </div>
+      <div class="modal-form-group">
+        <label for="product-stock">Stock Quantity <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="number" id="product-stock" placeholder="e.g. 50" min="0" step="1" />
       </div>
 
       <!-- Price Tiers -->
       <div class="modal-form-group">
-        <label>
-          Price Tiers
-          <span style="font-weight:400;color:#777;font-size:0.82rem"> (optional — different prices per quantity)</span>
-        </label>
-        <div class="tier-header-row">
-          <span>Min Qty</span>
-          <span>Price (₱)</span>
-          <span></span>
-        </div>
+        <label>Price Tiers <span style="font-weight:400;color:#777;font-size:0.82rem">(optional)</span></label>
+        <div class="tier-header-row"><span>Min Qty</span><span>Price (₱)</span><span></span></div>
         <div id="price-tiers-container"></div>
-        <button type="button" class="btn btn-small btn-outline" onclick="addTierRow()" style="margin-top:6px">
-          + Add Tier
-        </button>
+        <button type="button" class="btn btn-small btn-outline" onclick="addTierRow()" style="margin-top:6px">+ Add Tier</button>
       </div>
 
-      <!-- Sizes / Variants -->
+      <!-- Variants -->
       <div class="modal-form-group">
-        <label>
-          Sizes / Variants
-          <span style="font-weight:400;color:#777;font-size:0.82rem"> (optional — e.g. Small, Medium, Large)</span>
-        </label>
-        <div class="tier-header-row">
-          <span>Size Name</span>
-          <span>Price (₱)</span>
-          <span></span>
-        </div>
+        <label>Sizes / Variants <span style="font-weight:400;color:#777;font-size:0.82rem">(optional)</span></label>
+        <div class="tier-header-row"><span>Size Name</span><span>Price (₱)</span><span></span></div>
         <div id="variants-container"></div>
-        <button type="button" class="btn btn-small btn-outline" onclick="addVariantRow()" style="margin-top:6px">
-          + Add Size
-        </button>
+        <button type="button" class="btn btn-small btn-outline" onclick="addVariantRow()" style="margin-top:6px">+ Add Size</button>
       </div>
 
-      <!-- Product Photos (multiple) -->
+      <!-- Photos -->
       <div class="modal-form-group">
-        <label>
-          Product Photos
-          <span id="photo-optional-label" style="font-weight:400;color:#777;font-size:0.82rem"> (optional — keep current if blank)</span>
-        </label>
-        <div class="file-upload-box" onclick="document.getElementById('product-images').click()">
-          <p id="product-file-text">📷 Tap to choose photos (you can select multiple)</p>
-          <div id="product-img-previews" class="admin-img-preview-row"></div>
+        <label>Product Photos <span id="photo-optional-label" style="font-weight:400;color:#777;font-size:0.82rem"></span></label>
+
+        <!-- Carousel preview (visible when photos exist) -->
+        <div id="admin-photo-carousel" class="admin-photo-carousel" style="display:none">
+          <img id="admin-carousel-img" src="" alt="Product photo" class="admin-carousel-img" />
+          <button type="button" class="carousel-btn carousel-btn-left" onclick="adminCarouselNav(-1)">&#8249;</button>
+          <button type="button" class="carousel-btn carousel-btn-right" onclick="adminCarouselNav(1)">&#8250;</button>
+          <span class="carousel-counter" id="admin-carousel-counter">1/1</span>
         </div>
-        <input
-          type="file"
-          id="product-images"
-          accept="image/*"
-          multiple
-          style="display:none"
-          onchange="previewProductImages(this)"
-        />
+
+        <!-- Reorderable thumbnail strip -->
+        <div id="admin-photo-thumbs" class="admin-photo-thumbs" style="display:none"></div>
+
+        <div class="file-upload-box" onclick="document.getElementById('product-images').click()" style="margin-top:8px">
+          <p id="product-file-text">📷 Tap to add more photos (up to 10)</p>
+        </div>
+        <input type="file" id="product-images" accept="image/*" multiple style="display:none" onchange="previewProductImages(this)" />
       </div>
 
       <div id="product-form-error" class="error-box" style="display:none"></div>
-
-      <button type="submit" class="btn btn-primary btn-full" id="product-save-btn">
-        Save Product
-      </button>
-      <button type="button" class="btn btn-outline btn-full" onclick="closeProductModal()">
-        Cancel
-      </button>
-
+      <button type="submit" class="btn btn-primary btn-full" id="product-save-btn">Save Product</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeProductModal()">Cancel</button>
     </form>
+    </div><!-- /modal-scroll-body -->
   </div>
 
   <!-- ══════════════════════════════════════════
-       SCREENSHOT VIEWER MODAL
-       Opens when admin clicks a payment thumbnail
+       SCREENSHOT VIEWER
   ══════════════════════════════════════════ -->
   <div class="modal-overlay" id="screenshot-overlay" onclick="closeScreenshot()" style="z-index:600"></div>
-  <div id="screenshot-viewer" style="
-    display:none; position:fixed; top:50%; left:50%;
-    transform:translate(-50%,-50%); z-index:700;
-    background:#fff; border-radius:10px; padding:12px;
-    box-shadow:0 20px 60px rgba(0,0,0,0.4); max-width:90vw; max-height:90vh;
-  ">
-    <button onclick="closeScreenshot()" style="
-      position:absolute; top:8px; right:8px;
-      background:#dc3545; color:#fff; border:none; border-radius:50%;
-      width:28px; height:28px; cursor:pointer; font-size:0.9rem;
-    ">✕</button>
-    <img id="screenshot-full" src="" alt="Payment screenshot" style="max-width:80vw; max-height:80vh; display:block;" />
+  <div id="screenshot-viewer" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:700;background:#fff;border-radius:10px;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,0.4);max-width:90vw;max-height:90vh">
+    <button onclick="closeScreenshot()" style="position:absolute;top:8px;right:8px;background:#dc3545;color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.9rem">✕</button>
+    <img id="screenshot-full" src="" alt="Payment screenshot" style="max-width:80vw;max-height:80vh;display:block" />
   </div>
 
   <!-- ══════════════════════════════════════════
@@ -249,33 +424,193 @@
       <h2 id="discount-modal-title">Add Discount</h2>
       <button class="cart-close-btn" onclick="closeDiscountModal()">✕</button>
     </div>
-    <form id="discount-form" onsubmit="saveDiscount(event)" style="padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
+    <form id="discount-form" onsubmit="saveDiscount(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px">
       <input type="hidden" id="discount-id" value="" />
-
       <div class="modal-form-group">
-        <label for="discount-name">Discount Code / Name</label>
+        <label>Discount Code / Name</label>
         <input type="text" id="discount-name" placeholder="e.g. SUMMER10" required />
         <small>Customers will see this name to choose their discount.</small>
       </div>
-
       <div class="modal-form-group">
-        <label for="discount-type">Discount Type</label>
+        <label>Discount Type</label>
         <select id="discount-type" required>
           <option value="percent">Percent (%) — e.g. 10% off</option>
           <option value="fixed">Fixed Amount (₱) — e.g. ₱50 off</option>
         </select>
       </div>
-
       <div class="modal-form-group">
-        <label for="discount-value" id="discount-value-label">Discount Value</label>
+        <label>Discount Value</label>
         <input type="number" id="discount-value" placeholder="e.g. 10" min="0" step="0.01" required />
       </div>
-
       <div id="discount-form-error" class="error-box" style="display:none"></div>
-
       <button type="submit" class="btn btn-primary btn-full" id="discount-save-btn">Save Discount</button>
       <button type="button" class="btn btn-outline btn-full" onclick="closeDiscountModal()">Cancel</button>
     </form>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       FINANCE MODALS (Receivable / Payable / Expense)
+  ══════════════════════════════════════════ -->
+
+  <!-- Receivable Modal -->
+  <div class="modal-overlay" id="receivable-modal-overlay" onclick="closeReceivableModal()"></div>
+  <div class="checkout-modal" id="receivable-modal">
+    <div class="modal-header">
+      <h2 id="receivable-modal-title">Add Receivable</h2>
+      <button class="cart-close-btn" onclick="closeReceivableModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="receivable-form" onsubmit="saveReceivable(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="receivable-id" />
+      <div class="modal-form-group">
+        <label>Customer Name</label>
+        <input type="text" id="rec-customer" placeholder="Customer name" required />
+      </div>
+      <div class="modal-form-group">
+        <label>Amount (₱)</label>
+        <input type="number" id="rec-amount" placeholder="e.g. 900" min="0" step="0.01" required />
+      </div>
+      <div class="modal-form-group">
+        <label>Status</label>
+        <select id="rec-status">
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="overdue">Overdue</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label>Due Date <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="date" id="rec-due" />
+      </div>
+      <div class="modal-form-group">
+        <label>Related Order ID <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="text" id="rec-order" placeholder="ord_..." />
+      </div>
+      <div class="modal-form-group">
+        <label>Notes <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <textarea id="rec-notes" rows="2" placeholder="Any notes..."></textarea>
+      </div>
+      <div id="receivable-form-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full" id="receivable-save-btn">Save</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeReceivableModal()">Cancel</button>
+    </form>
+    </div>
+  </div>
+
+  <!-- Payable Modal -->
+  <div class="modal-overlay" id="payable-modal-overlay" onclick="closePayableModal()"></div>
+  <div class="checkout-modal" id="payable-modal">
+    <div class="modal-header">
+      <h2 id="payable-modal-title">Add Payable</h2>
+      <button class="cart-close-btn" onclick="closePayableModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="payable-form" onsubmit="savePayable(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="payable-id" />
+      <div class="modal-form-group">
+        <label>Supplier / Payee Name</label>
+        <input type="text" id="pay-supplier" placeholder="e.g. Fabric Supplier Co." required />
+      </div>
+      <div class="modal-form-group">
+        <label>Description <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="text" id="pay-desc" placeholder="What is this payment for?" />
+      </div>
+      <div class="modal-form-group">
+        <label>Amount (₱)</label>
+        <input type="number" id="pay-amount" placeholder="e.g. 5000" min="0" step="0.01" required />
+      </div>
+      <div class="modal-form-group">
+        <label>Status</label>
+        <select id="pay-status">
+          <option value="unpaid">Unpaid</option>
+          <option value="partial">Partial</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label>Due Date <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="date" id="pay-due" />
+      </div>
+      <div class="modal-form-group">
+        <label>Notes <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <textarea id="pay-notes" rows="2" placeholder="Any notes..."></textarea>
+      </div>
+      <div id="payable-form-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full" id="payable-save-btn">Save</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closePayableModal()">Cancel</button>
+    </form>
+    </div>
+  </div>
+
+  <!-- Expense Modal -->
+  <div class="modal-overlay" id="expense-modal-overlay" onclick="closeExpenseModal()"></div>
+  <div class="checkout-modal" id="expense-modal">
+    <div class="modal-header">
+      <h2 id="expense-modal-title">Add Expense</h2>
+      <button class="cart-close-btn" onclick="closeExpenseModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="expense-form" onsubmit="saveExpense(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="expense-id" />
+      <div class="modal-form-group">
+        <label>Category</label>
+        <select id="exp-category" required>
+          <option value="">Select category...</option>
+          <option>Supplies</option>
+          <option>Shipping</option>
+          <option>Utilities</option>
+          <option>Salaries</option>
+          <option>Marketing</option>
+          <option>Rent</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label>Description <span style="color:var(--text-light);font-weight:400;font-size:0.82rem">(optional)</span></label>
+        <input type="text" id="exp-desc" placeholder="Brief description..." />
+      </div>
+      <div class="modal-form-group">
+        <label>Amount (₱)</label>
+        <input type="number" id="exp-amount" placeholder="e.g. 500" min="0" step="0.01" required />
+      </div>
+      <div class="modal-form-group">
+        <label>Date</label>
+        <input type="date" id="exp-date" required />
+      </div>
+      <div id="expense-form-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full" id="expense-save-btn">Save Expense</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeExpenseModal()">Cancel</button>
+    </form>
+    </div>
+  </div>
+
+  <!-- Inline inventory / price edit modal -->
+  <div class="modal-overlay" id="inventory-modal-overlay" onclick="closeInventoryModal()"></div>
+  <div class="checkout-modal" id="inventory-modal">
+    <div class="modal-header">
+      <h2 id="inventory-modal-title">Update Inventory</h2>
+      <button class="cart-close-btn" onclick="closeInventoryModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="inventory-form" onsubmit="saveInventory(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="inventory-product-id" />
+      <div class="modal-form-group">
+        <label>Stock Quantity</label>
+        <input type="number" id="inv-stock" min="0" step="1" />
+      </div>
+      <div class="modal-form-group">
+        <label>Cost Price (₱)</label>
+        <input type="number" id="inv-cost" min="0" step="0.01" />
+      </div>
+      <div class="modal-form-group">
+        <label>Category</label>
+        <input type="text" id="inv-category" placeholder="e.g. Tops" />
+      </div>
+      <div id="inventory-form-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full">Save Changes</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeInventoryModal()">Cancel</button>
+    </form>
+    </div>
   </div>
 
   <script src="js/admin.js"></script>

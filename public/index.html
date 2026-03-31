@@ -15,7 +15,7 @@
     </a>
     <ul class="nav-links">
       <li><a href="index.html" class="active">Shop</a></li>
-      <li id="nav-dashboard" style="display:none"><a href="dashboard.html">Dashboard</a></li>
+      <li id="nav-dashboard" style="display:none"><a href="dashboard.html">Profile</a></li>
       <li id="nav-admin" style="display:none"><a href="admin.html">Admin</a></li>
       <li id="nav-login"><a href="login.html">Login</a></li>
       <li id="nav-register"><a href="register.html">Register</a></li>
@@ -77,10 +77,20 @@
           <option value="">No discount</option>
         </select>
       </div>
+      <div class="cart-points-row" id="cart-points-row" style="display:none">
+        <label class="cart-points-label">
+          <input type="checkbox" id="cart-points-toggle" onchange="togglePoints()" />
+          ⭐ Use <strong id="cart-points-available">0</strong> pts
+          <span id="cart-points-value-label">(= ₱0 off)</span>
+        </label>
+      </div>
       <div class="cart-totals">
         <div class="cart-total-line">Subtotal: <span id="cart-subtotal">₱0.00</span></div>
         <div class="cart-total-line discount-line" id="cart-discount-line" style="display:none">
           Discount: <span id="cart-discount-amount" style="color:var(--success)">-₱0.00</span>
+        </div>
+        <div class="cart-total-line discount-line" id="cart-points-line" style="display:none">
+          Points: <span id="cart-points-discount" style="color:var(--success)">-₱0.00</span>
         </div>
         <div class="cart-total-line cart-grand-total">Total: <span id="cart-total">₱0.00</span></div>
       </div>
@@ -98,6 +108,7 @@
       <button class="cart-close-btn" onclick="closeCheckoutModal()">✕</button>
     </div>
 
+    <div class="modal-scroll-body">
     <div id="checkout-summary"></div>
 
     <form id="checkout-form" onsubmit="submitOrder(event)">
@@ -137,9 +148,22 @@
         <small>Send your GCash payment first, then upload the screenshot here.</small>
       </div>
 
-      <div class="gcash-info">
-        <p>💚 <strong>Payment via GCash</strong></p>
-        <p>Send your payment to our GCash number before confirming. We will contact you to confirm delivery.</p>
+      <div class="gcash-info" id="payment-qr-section">
+        <p>💚 <strong>Payment Instructions</strong></p>
+        <p>Scan the QR code below to send your payment, then upload the screenshot above.</p>
+        <div id="payment-qr-wrap" style="display:none;text-align:center;margin-top:12px">
+          <img id="payment-qr-img" src="" alt="Payment QR Code"
+            style="max-width:200px;border-radius:8px;border:2px solid var(--border);cursor:zoom-in"
+            onclick="openLightbox([this.src], 0)" />
+          <br/>
+          <a id="payment-qr-download" href="" download="blazeup-payment-qr.png"
+            class="btn btn-small" style="margin-top:10px;display:inline-block">
+            ⬇ Download QR Code
+          </a>
+          <p style="font-size:0.75rem;color:var(--text-light);margin-top:6px">
+            Download and open on your phone to scan
+          </p>
+        </div>
       </div>
 
       <div id="checkout-error" class="error-box" style="display:none"></div>
@@ -155,6 +179,19 @@
 
     <div id="order-confirmation" style="display:none; padding: 8px;"></div>
 
+    </div><!-- /modal-scroll-body -->
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox-overlay" id="lightbox" onclick="closeLightboxOnBg(event)">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <button class="lightbox-prev" onclick="lightboxNav(-1)">&#8249;</button>
+    <button class="lightbox-next" onclick="lightboxNav(1)">&#8250;</button>
+    <div class="lightbox-img-wrap" id="lightbox-img-wrap">
+      <img id="lightbox-img" src="" alt="Product Image" class="lightbox-img" />
+    </div>
+    <div class="lightbox-counter" id="lightbox-counter"></div>
+    <div class="lightbox-hint">Pinch or double-tap to zoom &nbsp;·&nbsp; Swipe to browse &nbsp;·&nbsp; Tap outside to close</div>
   </div>
 
   <script src="js/main.js"></script>

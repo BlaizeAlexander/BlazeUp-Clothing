@@ -1,0 +1,6 @@
+{
+  "pointsSystemEnabled": true,
+  "purchasePointsRate": 1,
+  "referralRewardPoints": 100,
+  "paymentQrCodePath": "assets/qr-payment.png"
+}

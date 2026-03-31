@@ -12,6 +12,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   updateNavbar();
   updateCartBadge();
+  setupLightboxInteractions();
 
   if (window.location.pathname.includes('dashboard.html')) {
     loadDashboard();
@@ -42,15 +43,17 @@ async function updateNavbar() {
 
     if (response.ok) {
       const user = await response.json();
-      // Dashboard is hidden for all users — only Shop + Cart shown
-      hideElement('nav-dashboard');
+      showElement('nav-dashboard');
       showElement('nav-logout');
       hideElement('nav-login');
       hideElement('nav-register');
 
       // Admin link only visible to admin users
-      if (user.isAdmin) showElement('nav-admin');
-      else hideElement('nav-admin');
+      if (user.isAdmin) {
+        showElement('nav-admin');
+      } else {
+        hideElement('nav-admin');
+      }
 
     } else {
       hideElement('nav-dashboard');
@@ -79,6 +82,7 @@ async function loadProducts() {
       return;
     }
 
+    grid.innerHTML = ''; // clear loading message
     grid.innerHTML = products.map(p => {
       const tiers     = p.priceTiers && p.priceTiers.length > 0 ? p.priceTiers : [];
       const tiersAttr = JSON.stringify(tiers).replace(/"/g, '&quot;');
@@ -89,21 +93,32 @@ async function loadProducts() {
       // Default price = first variant price (if any), else product base price
       const defaultPrice = variants.length > 0 ? variants[0].price : parseFloat(p.price);
 
+      // Build a safe JS array literal for lightbox (paths are safe filenames)
+      const lbArr = '[' + images.map(s => `'${s}'`).join(',') + ']';
+
       // Image section: carousel if multiple, plain img if single
       const imageHTML = images.length > 1
         ? `<div class="product-carousel" id="${cid}">
-            ${images.map((src, i) => `
-              <img src="${src}" alt="${p.name.replace(/"/g, '&quot;')}"
-                class="carousel-img${i === 0 ? ' active' : ''}"
-                onerror="this.style.display='none'" />
-            `).join('')}
-            <button class="carousel-btn carousel-prev" type="button" onclick="carouselStep('${cid}',-1)">&#8249;</button>
-            <button class="carousel-btn carousel-next" type="button" onclick="carouselStep('${cid}',1)">&#8250;</button>
-            <div class="carousel-dots">
-              ${images.map((_, i) => `<span class="carousel-dot${i === 0 ? ' active' : ''}" onclick="carouselGo('${cid}',${i})"></span>`).join('')}
+            <div class="carousel-main" onclick="carouselMainClick(event,'${cid}',${lbArr})">
+              ${images.map((src, i) => `
+                <img src="${src}" alt="${p.name.replace(/"/g, '&quot;')}"
+                  class="carousel-img${i === 0 ? ' active' : ''}"
+                  onerror="this.style.display='none'" />
+              `).join('')}
+              <button class="carousel-btn carousel-prev" type="button" onclick="event.stopPropagation();carouselStep('${cid}',-1)">&#8249;</button>
+              <button class="carousel-btn carousel-next" type="button" onclick="event.stopPropagation();carouselStep('${cid}',1)">&#8250;</button>
+              <div class="carousel-counter" id="${cid}-counter">1 / ${images.length}</div>
+            </div>
+            <div class="carousel-thumbs" id="${cid}-thumbs">
+              ${images.map((src, i) => `
+                <img src="${src}" alt=""
+                  class="carousel-thumb${i === 0 ? ' active' : ''}"
+                  onclick="carouselGo('${cid}',${i})"
+                  onerror="this.style.display='none'" />
+              `).join('')}
             </div>
           </div>`
-        : `<div class="product-image">
+        : `<div class="product-image" style="cursor:zoom-in" onclick="openLightbox(${lbArr},0)">
             <img src="${images[0]}" alt="${p.name.replace(/"/g, '&quot;')}"
               onerror="this.style.display='none'; this.parentElement.classList.add('no-image')" />
           </div>`;
@@ -159,9 +174,46 @@ async function loadProducts() {
       `;
     }).join('');
 
+    // Set up touch/swipe for all carousels after DOM is rendered
+    setupCarousels();
+
   } catch (err) {
     grid.innerHTML = '<p style="text-align:center;color:#777;padding:40px">Could not load products. Is the server running?</p>';
   }
+}
+
+// ── carouselMainClick() ──────────────────────────────────────
+// Called when clicking the main image area — opens lightbox at current slide
+function carouselMainClick(event, id, images) {
+  // Ignore clicks on the prev/next buttons (they stopPropagation already, but just in case)
+  if (event.target.classList.contains('carousel-btn') ||
+      event.target.classList.contains('carousel-counter')) return;
+
+  const c = document.getElementById(id);
+  if (!c) return;
+  let cur = 0;
+  c.querySelectorAll('.carousel-img').forEach((img, i) => {
+    if (img.classList.contains('active')) cur = i;
+  });
+  openLightbox(images, cur);
+}
+
+// ── setupCarousels() ──────────────────────────────────────────
+// Adds touch/swipe support to all product carousels on the page
+function setupCarousels() {
+  document.querySelectorAll('.product-carousel').forEach(c => {
+    const main = c.querySelector('.carousel-main');
+    if (!main) return;
+    let startX = 0;
+    main.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+    }, { passive: true });
+    main.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) < 30) return; // ignore tiny taps
+      carouselStep(c.id, dx < 0 ? 1 : -1);
+    }, { passive: true });
+  });
 }
 
 
@@ -179,6 +231,8 @@ async function registerUser(event) {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const referralCode = document.getElementById('referralCode').value.trim();
+  const contactEl = document.getElementById('contact');
+  const contact = contactEl ? contactEl.value.trim() : '';
 
   // Simple client-side validation
   if (password.length < 6) {
@@ -203,7 +257,8 @@ async function registerUser(event) {
         username,
         email,
         password,
-        referralCode
+        referralCode,
+        contact
       })
     });
 
@@ -310,19 +365,26 @@ async function loadDashboard() {
     const user = await response.json();
 
     // Fill in all the placeholder elements with real data
-    // document.getElementById finds an element by its id=""
-    document.getElementById('user-username').textContent = user.username;
+    document.getElementById('user-username').textContent      = user.username;
     document.getElementById('user-referral-code').textContent = user.referralCode;
     document.getElementById('user-referral-count').textContent = user.referralCount;
-    document.getElementById('user-created-at').textContent = formatDate(user.createdAt);
+    document.getElementById('user-created-at').textContent    = formatDate(user.createdAt);
+    document.getElementById('user-points').textContent        = user.points || 0;
 
     // Account info section
-    document.getElementById('info-username').textContent = user.username;
-    document.getElementById('info-email').textContent = user.email;
+    document.getElementById('info-username').textContent  = user.username;
+    document.getElementById('info-email').textContent     = user.email;
+    document.getElementById('info-contact').textContent   = user.contact || 'Not set';
     document.getElementById('info-referred-by').textContent = user.referredBy || 'Nobody (direct signup)';
 
+    // Pre-fill edit form with current values
+    const editUsername = document.getElementById('edit-username');
+    const editContact  = document.getElementById('edit-contact');
+    if (editUsername) editUsername.value = user.username || '';
+    if (editContact)  editContact.value  = user.contact  || '';
+
     // Build the shareable referral link
-    // This creates a link like: http://localhost:3000/register.html?ref=ABC123
+    // http://localhost:3000/register.html?ref=ABC123
     const referralLink = `${window.location.origin}/register.html?ref=${user.referralCode}`;
     document.getElementById('referral-link').value = referralLink;
 
@@ -330,9 +392,141 @@ async function loadDashboard() {
     hideElement('loading');
     showElement('dashboard-content');
 
+    // Load order history
+    loadMyOrders();
+
   } catch (err) {
     window.location.href = 'login.html';
   }
+}
+
+
+// ── updateProfile() ──────────────────────────────────────────
+// Saves updated contact number and delivery address
+// ── toggleProfileEdit() ──────────────────────────────────────
+function toggleProfileEdit() {
+  const view    = document.getElementById('profile-view');
+  const form    = document.getElementById('profile-form');
+  const btn     = document.getElementById('edit-profile-btn');
+  const isEditing = form.style.display !== 'none';
+
+  if (isEditing) {
+    // Cancel — go back to view mode
+    form.style.display = 'none';
+    view.style.display = '';
+    btn.textContent = '✏️ Edit Profile';
+    document.getElementById('profile-success').style.display = 'none';
+    document.getElementById('profile-error').style.display   = 'none';
+  } else {
+    // Enter edit mode
+    view.style.display = 'none';
+    form.style.display = '';
+    btn.textContent = '✕ Cancel';
+  }
+}
+
+async function updateProfile(event) {
+  event.preventDefault();
+
+  const username   = document.getElementById('edit-username').value.trim();
+  const contact    = document.getElementById('edit-contact').value.trim();
+  const successBox = document.getElementById('profile-success');
+  const errorBox   = document.getElementById('profile-error');
+  const saveBtn    = document.getElementById('profile-save-btn');
+
+  saveBtn.disabled    = true;
+  saveBtn.textContent = 'Saving...';
+  successBox.style.display = 'none';
+  errorBox.style.display   = 'none';
+
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username, contact })
+    });
+
+    if (res.ok) {
+      // Update displayed values and go back to view mode
+      document.getElementById('info-username').textContent = username || '---';
+      document.getElementById('info-contact').textContent  = contact  || 'Not set';
+      document.getElementById('user-username').textContent = username || '---';
+      // Collapse form back to view mode
+      document.getElementById('profile-form').style.display = 'none';
+      document.getElementById('profile-view').style.display = '';
+      document.getElementById('edit-profile-btn').textContent = '✏️ Edit Profile';
+      successBox.style.display = '';
+      // Show success briefly in the view section
+      document.getElementById('profile-view').appendChild(successBox);
+      setTimeout(() => successBox.style.display = 'none', 3000);
+    } else {
+      const data = await res.json();
+      errorBox.textContent   = data.error || 'Could not save. Please try again.';
+      errorBox.style.display = '';
+    }
+  } catch {
+    errorBox.textContent   = 'Cannot connect to server.';
+    errorBox.style.display = '';
+  } finally {
+    saveBtn.disabled    = false;
+    saveBtn.textContent = 'Save Changes';
+  }
+}
+
+
+// ── loadMyOrders() ────────────────────────────────────────────
+// Fetches and displays the logged-in user's order history
+async function loadMyOrders() {
+  const loadingEl = document.getElementById('orders-loading');
+  const listEl    = document.getElementById('orders-list');
+  if (!loadingEl || !listEl) return;
+
+  try {
+    const res    = await fetch('/api/orders/my', { credentials: 'include' });
+    const orders = await res.json();
+
+    loadingEl.style.display = 'none';
+    listEl.style.display    = '';
+
+    if (!orders.length) {
+      listEl.innerHTML = `
+        <div style="color:var(--text-light);font-size:0.9rem;padding:16px 0">
+          No orders yet. <a href="index.html" style="color:var(--accent);font-weight:600">Start shopping!</a>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = orders.map(o => `
+      <div class="order-history-card">
+        <div class="order-history-header">
+          <span class="order-history-id">Order #${o.id.replace('ord_','')}</span>
+          <span class="order-status-badge status-badge-${o.status}">${statusLabel(o.status)}</span>
+          <span class="order-history-date">${formatDate(o.createdAt)}</span>
+        </div>
+        <div class="order-history-items">
+          ${(o.items || []).map(i => `<span>${i.name} ×${i.qty}</span>`).join(' · ')}
+        </div>
+        <div class="order-history-total">Total: <strong>₱${parseFloat(o.total).toFixed(2)}</strong></div>
+        <div class="order-history-address">📍 ${o.address}</div>
+      </div>
+    `).join('');
+
+  } catch {
+    if (loadingEl) loadingEl.textContent = 'Could not load order history.';
+  }
+}
+
+// Maps status string to a user-friendly label
+function statusLabel(status) {
+  const map = {
+    pending:   '⏳ Pending',
+    confirmed: '✅ Confirmed',
+    shipped:   '🚚 Shipped',
+    delivered: '📬 Delivered',
+    cancelled: '❌ Cancelled'
+  };
+  return map[status] || status;
 }
 
 
@@ -426,23 +620,34 @@ function selectVariant(clickedBtn, productId) {
 
 // ── carouselStep() ───────────────────────────────────────────
 function carouselStep(id, delta) {
-  const c    = document.getElementById(id);
+  const c = document.getElementById(id);
   if (!c) return;
   const imgs = c.querySelectorAll('.carousel-img');
-  const dots = c.querySelectorAll('.carousel-dot');
   let cur = 0;
   imgs.forEach((img, i) => { if (img.classList.contains('active')) cur = i; });
-  const next = (cur + delta + imgs.length) % imgs.length;
-  imgs[cur].classList.remove('active'); imgs[next].classList.add('active');
-  if (dots.length) { dots[cur].classList.remove('active'); dots[next].classList.add('active'); }
+  carouselGo(id, (cur + delta + imgs.length) % imgs.length);
 }
 
 // ── carouselGo() ─────────────────────────────────────────────
 function carouselGo(id, index) {
   const c = document.getElementById(id);
   if (!c) return;
+  // Update main images
   c.querySelectorAll('.carousel-img').forEach((img, i) => img.classList.toggle('active', i === index));
-  c.querySelectorAll('.carousel-dot').forEach((dot, i) => dot.classList.toggle('active', i === index));
+  // Update thumbnails
+  const thumbWrap = document.getElementById(`${id}-thumbs`);
+  if (thumbWrap) {
+    const thumbs = thumbWrap.querySelectorAll('.carousel-thumb');
+    thumbs.forEach((t, i) => t.classList.toggle('active', i === index));
+    // Scroll active thumb into view smoothly
+    if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+  // Update counter
+  const counter = document.getElementById(`${id}-counter`);
+  if (counter) {
+    const total = c.querySelectorAll('.carousel-img').length;
+    counter.textContent = `${index + 1} / ${total}`;
+  }
 }
 
 // ── addToCartFromCard() ──────────────────────────────────────
@@ -458,7 +663,7 @@ function addToCartFromCard(btn) {
   const variantName = btn.dataset.variantName;
   const displayName = variantName ? `${btn.dataset.name} — ${variantName}` : btn.dataset.name;
 
-  addToCart(displayName, parseFloat(btn.dataset.price), btn.dataset.image, btn, btn.dataset.tiers, qty);
+  addToCart(displayName, parseFloat(btn.dataset.price), btn.dataset.image, btn, btn.dataset.tiers, qty, btn.dataset.pid);
 }
 
 // ── addToCart() ──────────────────────────────────────────────
@@ -466,7 +671,7 @@ function addToCartFromCard(btn) {
 // btn       — the button element (flash feedback)
 // tiersJSON — JSON string of price tiers
 // qty       — how many to add (default 1)
-function addToCart(name, price, image, btn, tiersJSON, qty) {
+function addToCart(name, price, image, btn, tiersJSON, qty, productId) {
   qty = qty || 1;
   const cart  = getCart();
   const tiers = tiersJSON ? JSON.parse(tiersJSON) : [];
@@ -482,7 +687,8 @@ function addToCart(name, price, image, btn, tiersJSON, qty) {
     const basePrice = price;
     const tierPrice = getTierPrice(tiers, qty);
     const effPrice  = tierPrice !== null ? tierPrice : basePrice;
-    cart.push({ name, basePrice, price: effPrice, image, qty, tiers });
+    // productId stored so server can track COGS and decrement stock accurately
+    cart.push({ name, basePrice, price: effPrice, image, qty, tiers, productId: productId || null });
   }
 
   saveCart(cart);
@@ -606,12 +812,24 @@ function renderCart() {
   updateCartTotals(subtotal);
 }
 
+// ── Points state ─────────────────────────────────────────────
+let _userPoints = 0;
+
+function getPointsDiscount(subtotal, discountAmt) {
+  const toggle = document.getElementById('cart-points-toggle');
+  if (!toggle || !toggle.checked || !_userPoints) return 0;
+  const afterDiscount = Math.max(0, subtotal - discountAmt);
+  return Math.min(_userPoints, afterDiscount); // 1pt = ₱1, capped at remaining total
+}
+
 // ── updateCartTotals() ───────────────────────────────────────
 function updateCartTotals(subtotal) {
   const subtotalEl      = document.getElementById('cart-subtotal');
   const totalEl         = document.getElementById('cart-total');
   const discountLine    = document.getElementById('cart-discount-line');
   const discountAmtEl   = document.getElementById('cart-discount-amount');
+  const pointsLine      = document.getElementById('cart-points-line');
+  const pointsDiscEl    = document.getElementById('cart-points-discount');
 
   if (subtotalEl) subtotalEl.textContent = '₱' + subtotal.toFixed(2);
 
@@ -627,8 +845,25 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const total = Math.max(0, subtotal - discountAmt);
+  const pointsAmt = getPointsDiscount(subtotal, discountAmt);
+  if (pointsLine && pointsDiscEl) {
+    if (pointsAmt > 0) {
+      pointsDiscEl.textContent  = '-₱' + pointsAmt.toFixed(2);
+      pointsLine.style.display  = '';
+    } else {
+      pointsLine.style.display = 'none';
+    }
+  }
+
+  const total = Math.max(0, subtotal - discountAmt - pointsAmt);
   if (totalEl) totalEl.textContent = '₱' + total.toFixed(2);
+}
+
+// ── togglePoints() ───────────────────────────────────────────
+function togglePoints() {
+  const cart     = getCart();
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  updateCartTotals(subtotal);
 }
 
 // ── loadDiscountsIntoCart() ───────────────────────────────────
@@ -682,10 +917,29 @@ function applyDiscount() {
 }
 
 // ── openCart() ───────────────────────────────────────────────
-function openCart() {
+async function openCart() {
   try { renderCart(); } catch(e) { console.error(e); }
   document.getElementById('cart-sidebar').classList.add('open');
   document.getElementById('cart-overlay').classList.add('open');
+
+  // Load user points if logged in
+  try {
+    const res = await fetch('/api/me', { credentials: 'include' });
+    if (res.ok) {
+      const me = await res.json();
+      _userPoints = me.points || 0;
+      const row       = document.getElementById('cart-points-row');
+      const available = document.getElementById('cart-points-available');
+      const valLabel  = document.getElementById('cart-points-value-label');
+      if (row && _userPoints > 0) {
+        available.textContent = _userPoints;
+        valLabel.textContent  = `(= ₱${_userPoints.toFixed(2)} off)`;
+        row.style.display = '';
+      } else if (row) {
+        row.style.display = 'none';
+      }
+    }
+  } catch { /* not logged in, no points row */ }
 }
 
 // ── closeCart() ──────────────────────────────────────────────
@@ -708,7 +962,7 @@ function checkout() {
 }
 
 // ── openCheckoutModal() ──────────────────────────────────────
-function openCheckoutModal() {
+async function openCheckoutModal() {
   const cart     = getCart();
   const summaryEl = document.getElementById('checkout-summary');
   const discount  = getSelectedDiscount();
@@ -728,13 +982,22 @@ function openCheckoutModal() {
   });
 
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const total       = Math.max(0, subtotal - discountAmt);
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt);
 
   if (discountAmt > 0) {
     summaryHTML += `
       <div class="summary-row" style="color:var(--success)">
         <span>Discount (${discount.name})</span>
         <span>-₱${discountAmt.toFixed(2)}</span>
+      </div>
+    `;
+  }
+  if (pointsAmt > 0) {
+    summaryHTML += `
+      <div class="summary-row" style="color:var(--success)">
+        <span>⭐ Points used (${pointsAmt} pts)</span>
+        <span>-₱${pointsAmt.toFixed(2)}</span>
       </div>
     `;
   }
@@ -748,10 +1011,36 @@ function openCheckoutModal() {
 
   summaryEl.innerHTML = summaryHTML;
 
-  // Clear previous form inputs
-  document.getElementById('order-name').value = '';
+  // Clear previous form inputs, pre-filling contact/address from profile if available
+  document.getElementById('order-name').value    = '';
   document.getElementById('order-contact').value = '';
   document.getElementById('order-address').value = '';
+
+  // Try to auto-fill contact and address from user's saved profile
+  try {
+    const meRes = await fetch('/api/me', { credentials: 'include' });
+    if (meRes.ok) {
+      const me = await meRes.json();
+      if (me.contact)        document.getElementById('order-contact').value = me.contact;
+      if (me.pinnedLocation) document.getElementById('order-address').value  = me.pinnedLocation;
+    }
+  } catch { /* silently ignore — fields stay empty */ }
+
+  // Load payment QR code from settings
+  try {
+    const qrRes = await fetch('/api/payment-qr');
+    if (qrRes.ok) {
+      const qrData = await qrRes.json();
+      const qrWrap = document.getElementById('payment-qr-wrap');
+      const qrImg  = document.getElementById('payment-qr-img');
+      if (qrData.path && qrWrap && qrImg) {
+        qrImg.src = qrData.path;
+        qrWrap.style.display = '';
+        const dlBtn = document.getElementById('payment-qr-download');
+        if (dlBtn) dlBtn.href = qrData.path;
+      }
+    }
+  } catch { /* no QR configured */ }
 
   // Make sure the form is visible and confirmation is hidden
   document.getElementById('checkout-form').style.display = '';
@@ -810,7 +1099,8 @@ async function submitOrder(event) {
   const subtotal    = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const total       = Math.max(0, subtotal - discountAmt);
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt);
 
   // Disable button while uploading
   submitBtn.disabled    = true;
@@ -822,9 +1112,10 @@ async function submitOrder(event) {
   formData.append('customerName', name);
   formData.append('contact',      contact);
   formData.append('address',      address);
-  formData.append('items',        JSON.stringify(cart));  // cart as JSON string
+  formData.append('items',        JSON.stringify(cart));
   formData.append('total',        total);
-  formData.append('screenshot',   screenshot);            // the image file
+  formData.append('pointsUsed',   pointsAmt);
+  formData.append('screenshot',   screenshot);
 
   try {
     const res  = await fetch('/api/orders', {
@@ -868,9 +1159,14 @@ async function submitOrder(event) {
     `;
     confirmEl.style.display = '';
 
-    // Clear the cart
+    // Clear the cart and reset points toggle
     localStorage.removeItem('cart');
     updateCartBadge();
+    _userPoints = 0;
+    const toggle = document.getElementById('cart-points-toggle');
+    if (toggle) toggle.checked = false;
+    const prow = document.getElementById('cart-points-row');
+    if (prow) prow.style.display = 'none';
 
   } catch (err) {
     errorBox.textContent   = 'Cannot connect to server. Is it running?';
@@ -880,6 +1176,122 @@ async function submitOrder(event) {
   }
 }
 
+
+// ============================================================
+// LIGHTBOX — Full-screen image viewer with zoom & swipe
+// ============================================================
+
+let _lbImages    = [];
+let _lbIndex     = 0;
+let _lbScale     = 1;
+let _lbPinchDist = 0;
+let _lbLastTap   = 0;
+let _lbSwipeX    = 0;
+
+// ── openLightbox() ───────────────────────────────────────────
+// images: array of src strings, index: which one to show first
+function openLightbox(images, index) {
+  _lbImages = Array.isArray(images) ? images : [images];
+  _lbIndex  = index || 0;
+  _lbScale  = 1;
+  _renderLightbox();
+  const lb = document.getElementById('lightbox');
+  if (lb) { lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  if (lb) lb.classList.remove('open');
+  document.body.style.overflow = '';
+  _lbScale = 1;
+}
+
+function closeLightboxOnBg(e) {
+  if (e.target.id === 'lightbox' || e.target.id === 'lightbox-img-wrap') closeLightbox();
+}
+
+function lightboxNav(delta) {
+  if (_lbImages.length < 2) return;
+  _lbIndex = (_lbIndex + delta + _lbImages.length) % _lbImages.length;
+  _lbScale = 1;
+  _renderLightbox();
+}
+
+function _renderLightbox() {
+  const img     = document.getElementById('lightbox-img');
+  const counter = document.getElementById('lightbox-counter');
+  const prev    = document.querySelector('.lightbox-prev');
+  const next    = document.querySelector('.lightbox-next');
+  if (!img) return;
+
+  img.src = _lbImages[_lbIndex];
+  img.style.transform = 'scale(1)';
+  img.style.transition = 'transform 0.2s';
+
+  const multi = _lbImages.length > 1;
+  if (counter) { counter.textContent = multi ? `${_lbIndex + 1} / ${_lbImages.length}` : ''; }
+  if (prev)    prev.style.display = multi ? '' : 'none';
+  if (next)    next.style.display = multi ? '' : 'none';
+}
+
+// ── setupLightboxInteractions() ──────────────────────────────
+// Called once on page load — sets up touch zoom/swipe and keyboard
+function setupLightboxInteractions() {
+  const wrap = document.getElementById('lightbox-img-wrap');
+  if (!wrap) return;
+
+  // ── Pinch-to-zoom & double-tap zoom ──────────────────────
+  wrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      _lbPinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+    if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - _lbLastTap < 280) {
+        // Double-tap: toggle zoom
+        const img = document.getElementById('lightbox-img');
+        _lbScale = _lbScale > 1 ? 1 : 2.5;
+        if (img) img.style.transform = `scale(${_lbScale})`;
+      }
+      _lbLastTap  = Date.now();
+      _lbSwipeX   = e.touches[0].clientX;
+    }
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (_lbPinchDist > 0) {
+        _lbScale = Math.min(5, Math.max(0.8, _lbScale * (dist / _lbPinchDist)));
+        const img = document.getElementById('lightbox-img');
+        if (img) img.style.transform = `scale(${_lbScale})`;
+      }
+      _lbPinchDist = dist;
+    }
+  }, { passive: true });
+
+  // ── Swipe left/right to navigate (only when not zoomed) ──
+  wrap.addEventListener('touchend', e => {
+    if (_lbScale > 1.1) return;
+    const dx = e.changedTouches[0].clientX - _lbSwipeX;
+    if (Math.abs(dx) > 50) lightboxNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
+  // ── Keyboard: Escape / arrows ────────────────────────────
+  document.addEventListener('keydown', e => {
+    const lb = document.getElementById('lightbox');
+    if (!lb || !lb.classList.contains('open')) return;
+    if (e.key === 'Escape')     closeLightbox();
+    if (e.key === 'ArrowRight') lightboxNav(1);
+    if (e.key === 'ArrowLeft')  lightboxNav(-1);
+  });
+}
 
 // ── Auto-fill referral code from URL ─────────────────────────
 // If someone visits register.html?ref=ABC123, auto-fill the code
