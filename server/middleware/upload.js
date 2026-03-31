@@ -15,8 +15,8 @@ const ALLOWED_EXT  = new Set(['.jpg', '.jpeg', '.png']);
 const MAX_BYTES    = 10 * 1024 * 1024; // 10 MB
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  (process.env.SUPABASE_URL || '').trim(),
+  (process.env.SUPABASE_SERVICE_KEY || '').trim()
 );
 
 function fileFilter(req, file, cb) {
