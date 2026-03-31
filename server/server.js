@@ -25,7 +25,7 @@ app.use(helmet({
       scriptSrc:     ["'self'", "'unsafe-inline'"],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:      ["'self'", "'unsafe-inline'"],
-      imgSrc:     ["'self'", 'data:']
+      imgSrc:     ["'self'", 'data:', 'https://*.supabase.co']
     }
   }
 }));
