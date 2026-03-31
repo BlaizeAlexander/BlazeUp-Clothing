@@ -66,8 +66,10 @@ const financeRoutes  = require('./routes/finance');
 const settingsRoutes = require('./routes/settings');
 const profileRoutes  = require('./routes/profile');
 
-// Auth routes get the tighter rate limit
-app.use('/api', authLimiter, authRoutes);
+// Tight rate limit only on login and register — not /me or /logout
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+app.use('/api', authRoutes);
 app.use('/api', productRoutes);
 app.use('/api', orderRoutes);
 app.use('/api', discountRoutes);
