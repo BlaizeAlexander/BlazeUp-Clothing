@@ -8,7 +8,7 @@ const crypto = require('crypto');
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png']);
 const ALLOWED_EXT  = new Set(['.jpg', '.jpeg', '.png']);
-const MAX_BYTES    = 2 * 1024 * 1024; // 2 MB
+const MAX_BYTES    = 10 * 1024 * 1024; // 10 MB
 
 /**
  * Validate file by both declared MIME type and file extension.
@@ -80,7 +80,7 @@ const uploadQR = multer({
 function handleUploadError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
     const msg = err.code === 'LIMIT_FILE_SIZE'
-      ? 'File too large. Maximum size is 2 MB.'
+      ? 'File too large. Maximum size is 10 MB.'
       : `Upload error: ${err.message}`;
     return res.status(400).json({ error: msg });
   }
