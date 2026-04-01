@@ -133,7 +133,8 @@ CREATE TABLE IF NOT EXISTS settings (
   points_system_enabled  BOOLEAN      NOT NULL DEFAULT TRUE,
   purchase_points_rate   NUMERIC(8,4) NOT NULL DEFAULT 1,
   referral_reward_points INTEGER      NOT NULL DEFAULT 50,
-  payment_qr_code_path   TEXT         NOT NULL DEFAULT ''
+  payment_qr_code_path   TEXT         NOT NULL DEFAULT '',
+  shipping_fee           NUMERIC(12,2) NOT NULL DEFAULT 0
 );
 
 -- Seed the one and only row — safe to re-run

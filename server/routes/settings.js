@@ -13,7 +13,8 @@ const mapSettings = r => ({
   pointsSystemEnabled:  r.points_system_enabled,
   purchasePointsRate:   parseFloat(r.purchase_points_rate),
   referralRewardPoints: r.referral_reward_points,
-  paymentQrCodePath:    r.payment_qr_code_path
+  paymentQrCodePath:    r.payment_qr_code_path,
+  shippingFee:          parseFloat(r.shipping_fee)
 });
 
 // GET /api/admin/settings
@@ -29,18 +30,20 @@ router.put('/admin/settings', requireLogin, requireAdmin, async (req, res, next)
   try {
     const current = await query('SELECT * FROM settings WHERE id = 1');
     const cur = current.rows[0];
-    const { pointsSystemEnabled, purchasePointsRate, referralRewardPoints } = req.body;
+    const { pointsSystemEnabled, purchasePointsRate, referralRewardPoints, shippingFee } = req.body;
 
     const { rows } = await query(`
       UPDATE settings SET
         points_system_enabled  = $1,
         purchase_points_rate   = $2,
-        referral_reward_points = $3
+        referral_reward_points = $3,
+        shipping_fee           = $4
       WHERE id = 1 RETURNING *
     `, [
-      pointsSystemEnabled !== undefined ? !!pointsSystemEnabled    : cur.points_system_enabled,
-      purchasePointsRate  !== undefined ? parseFloat(purchasePointsRate) : cur.purchase_points_rate,
-      referralRewardPoints !== undefined ? parseInt(referralRewardPoints, 10) : cur.referral_reward_points
+      pointsSystemEnabled  !== undefined ? !!pointsSystemEnabled             : cur.points_system_enabled,
+      purchasePointsRate   !== undefined ? parseFloat(purchasePointsRate)    : cur.purchase_points_rate,
+      referralRewardPoints !== undefined ? parseInt(referralRewardPoints, 10): cur.referral_reward_points,
+      shippingFee          !== undefined ? parseFloat(shippingFee)           : cur.shipping_fee
     ]);
     res.json({ success: true, settings: mapSettings(rows[0]) });
   } catch (err) { next(err); }
@@ -69,6 +72,14 @@ router.get('/payment-qr', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT payment_qr_code_path FROM settings WHERE id = 1');
     res.json({ path: rows[0]?.payment_qr_code_path || '' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/shipping-fee — public: storefront uses this to display and apply shipping cost
+router.get('/shipping-fee', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT shipping_fee FROM settings WHERE id = 1');
+    res.json({ shippingFee: parseFloat(rows[0]?.shipping_fee ?? 0) });
   } catch (err) { next(err); }
 });
 

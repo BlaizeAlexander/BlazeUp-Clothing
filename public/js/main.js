@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateNavbar();
   updateCartBadge();
   setupLightboxInteractions();
+  loadShippingFee();
 
   if (window.location.pathname.includes('dashboard.html')) {
     loadDashboard();
@@ -815,6 +816,19 @@ function renderCart() {
 // ── Points state ─────────────────────────────────────────────
 let _userPoints = 0;
 
+// ── Shipping fee state ───────────────────────────────────────
+let _shippingFee = 0;
+
+async function loadShippingFee() {
+  try {
+    const res = await fetch('/api/shipping-fee');
+    if (res.ok) {
+      const data = await res.json();
+      _shippingFee = data.shippingFee || 0;
+    }
+  } catch { /* non-critical, default to 0 */ }
+}
+
 function getPointsDiscount(subtotal, discountAmt) {
   const toggle = document.getElementById('cart-points-toggle');
   if (!toggle || !toggle.checked || !_userPoints) return 0;
@@ -855,7 +869,18 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const total = Math.max(0, subtotal - discountAmt - pointsAmt);
+  const shippingLine = document.getElementById('cart-shipping-line');
+  const shippingEl   = document.getElementById('cart-shipping-fee');
+  if (shippingLine && shippingEl) {
+    if (_shippingFee > 0) {
+      shippingEl.textContent  = '₱' + _shippingFee.toFixed(2);
+      shippingLine.style.display = '';
+    } else {
+      shippingLine.style.display = 'none';
+    }
+  }
+
+  const total = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
   if (totalEl) totalEl.textContent = '₱' + total.toFixed(2);
 }
 
@@ -983,7 +1008,7 @@ async function openCheckoutModal() {
 
   const discountAmt = calcDiscountAmount(subtotal, discount);
   const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
-  const total       = Math.max(0, subtotal - discountAmt - pointsAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
 
   if (discountAmt > 0) {
     summaryHTML += `
@@ -998,6 +1023,14 @@ async function openCheckoutModal() {
       <div class="summary-row" style="color:var(--success)">
         <span>⭐ Points used (${pointsAmt} pts)</span>
         <span>-₱${pointsAmt.toFixed(2)}</span>
+      </div>
+    `;
+  }
+  if (_shippingFee > 0) {
+    summaryHTML += `
+      <div class="summary-row">
+        <span>Shipping</span>
+        <span>₱${_shippingFee.toFixed(2)}</span>
       </div>
     `;
   }
@@ -1100,7 +1133,7 @@ async function submitOrder(event) {
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
   const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
-  const total       = Math.max(0, subtotal - discountAmt - pointsAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
 
   // Disable button while uploading
   submitBtn.disabled    = true;

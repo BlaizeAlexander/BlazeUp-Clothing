@@ -1440,6 +1440,7 @@ async function loadSettings() {
     document.getElementById('setting-points-enabled').checked = !!settings.pointsSystemEnabled;
     document.getElementById('setting-purchase-rate').value    = settings.purchasePointsRate ?? 1;
     document.getElementById('setting-referral-pts').value     = settings.referralRewardPoints ?? 50;
+    document.getElementById('setting-shipping-fee').value     = settings.shippingFee ?? 0;
 
     // Show current QR code
     const qrBox = document.getElementById('qr-preview-box');
@@ -1464,7 +1465,8 @@ async function savePointsSettings(event) {
   const body = {
     pointsSystemEnabled:  document.getElementById('setting-points-enabled').checked,
     purchasePointsRate:   parseFloat(document.getElementById('setting-purchase-rate').value) || 1,
-    referralRewardPoints: parseInt(document.getElementById('setting-referral-pts').value) || 50
+    referralRewardPoints: parseInt(document.getElementById('setting-referral-pts').value) || 50,
+    shippingFee:          parseFloat(document.getElementById('setting-shipping-fee').value) || 0
   };
 
   try {
