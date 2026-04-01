@@ -105,6 +105,19 @@ async function runMigrations() {
   console.log('[migrate] settings.social_urls OK');
 }
 
+function startServer(port) {
+  const server = app.listen(port, () => console.log(`BlazeUp running on port ${port}`));
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`Port ${port} in use, trying ${port + 1}...`);
+      startServer(port + 1);
+    } else {
+      console.error('[server] Could not start:', err.message);
+      process.exit(1);
+    }
+  });
+}
+
 runMigrations()
-  .then(() => app.listen(PORT, () => console.log(`BlazeUp running on port ${PORT}`)))
-  .catch(err => { console.error('[migrate] FAILED:', err.message); process.exit(1); });
+  .catch(err => console.warn('[migrate] FAILED (non-fatal):', err.message))
+  .then(() => startServer(PORT));

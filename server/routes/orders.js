@@ -167,6 +167,16 @@ router.get('/admin/orders', requireLogin, requireAdmin, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+// ── DELETE /api/admin/orders/:id ─────────────────────────────
+router.delete('/admin/orders/:id', requireLogin, requireAdmin, async (req, res, next) => {
+  try {
+    await query('DELETE FROM order_items WHERE order_id = $1', [req.params.id]);
+    const { rowCount } = await query('DELETE FROM orders WHERE id = $1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Order not found.' });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/admin/customers ──────────────────────────────────
 router.get('/admin/customers', requireLogin, requireAdmin, async (req, res, next) => {
   try {

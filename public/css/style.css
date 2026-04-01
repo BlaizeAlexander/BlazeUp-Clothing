@@ -2782,6 +2782,441 @@ img {
 
 
 /* ============================================================
+   FINANCE DASHBOARD — Premium redesign
+   ============================================================ */
+
+/* Loading spinner */
+.fin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  gap: 14px;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.fin-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fin-spin 0.75s linear infinite;
+}
+
+@keyframes fin-spin { to { transform: rotate(360deg); } }
+
+/* Dashboard wrapper */
+.fin-dash {
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Big KPI Cards (5-col) ──────────────────────────────── */
+.fin-kpi-main-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.fin-kpi-main-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+  cursor: default;
+}
+
+.fin-kpi-main-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 12px 12px 0 0;
+}
+
+.fin-kpi-main-card.fin-pos::after { background: #16a34a; }
+.fin-kpi-main-card.fin-neg::after { background: #ef4444; }
+
+.fin-kpi-main-card:hover {
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+  transform: translateY(-2px);
+}
+
+.fin-kpi-top {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 20px;
+  margin-bottom: 4px;
+}
+
+.fin-trend-arrow {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fin-trend-arrow.fin-pos { color: #16a34a; }
+.fin-trend-arrow.fin-neg { color: #ef4444; }
+
+.fin-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.fin-kpi-value {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.fin-kpi-main-card.fin-pos .fin-kpi-value { color: #16a34a; }
+.fin-kpi-main-card.fin-neg .fin-kpi-value { color: #ef4444; }
+
+.fin-kpi-sub {
+  font-size: 0.73rem;
+  color: var(--text-light);
+  line-height: 1.4;
+}
+
+/* ── Charts row ─────────────────────────────────────────── */
+.fin-charts-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+}
+
+.fin-chart-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px 20px;
+}
+
+.fin-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.fin-chart-header h3 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fin-chart-badge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.fin-chart-wrap {
+  position: relative;
+  height: 240px;
+}
+
+/* ── Secondary cards (4-col) ────────────────────────────── */
+.fin-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.fin-sec-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  transition: box-shadow 0.2s;
+}
+
+.fin-sec-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.fin-sec-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fin-sec-icon { font-size: 1.1rem; }
+
+.fin-sec-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fin-sec-value {
+  font-size: 1.22rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.fin-sec-sub {
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
+
+.fin-sec-warn   .fin-sec-value  { color: #d97706; }
+.fin-sec-danger .fin-sec-value  { color: #dc2626; }
+.fin-sec-accent .fin-sec-value  { color: var(--accent); }
+.fin-sec-ok     .fin-sec-value  { color: #16a34a; }
+
+/* ── Bottom row: Insights + Activity ───────────────────── */
+.fin-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 16px;
+}
+
+.fin-insights-card,
+.fin-activity-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+.fin-insights-card h3,
+.fin-activity-card h3 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fin-insights-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fin-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-light);
+}
+
+.fin-insight-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: currentColor;
+}
+
+.fin-insight-good { background: rgba(22,163,74,0.07);  color: #166534; }
+.fin-insight-warn { background: rgba(245,158,11,0.09); color: #92400e; }
+.fin-insight-bad  { background: rgba(220,38,38,0.07);  color: #991b1b; }
+.fin-insight-info { background: rgba(99,102,241,0.07); color: #4338ca; }
+
+/* Recent activity table */
+.fin-activity-wrap {
+  overflow-x: auto;
+  max-height: 310px;
+  overflow-y: auto;
+}
+
+.fin-activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.fin-activity-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-light);
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fin-activity-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.fin-activity-table tr:last-child td { border-bottom: none; }
+
+.fin-activity-table tr:hover td {
+  background: var(--accent-light);
+}
+
+.fin-mono {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+
+.fin-amt {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Order status badges in activity table */
+.fin-status-badge.status-pending   { background: rgba(245,158,11,0.15); color: #d97706; }
+.fin-status-badge.status-confirmed { background: rgba(34,197,94,0.15);  color: #16a34a; }
+.fin-status-badge.status-shipped   { background: rgba(99,102,241,0.15); color: #6366f1; }
+.fin-status-badge.status-delivered { background: rgba(34,197,94,0.2);   color: #166534; }
+.fin-status-badge.status-cancelled { background: rgba(239,68,68,0.15);  color: #dc2626; }
+
+/* ── Formula bar ────────────────────────────────────────── */
+.fin-formula-bar {
+  padding: 12px 18px;
+  background: var(--accent-light);
+  border-radius: 8px;
+  font-size: 0.79rem;
+  color: var(--text-light);
+}
+
+/* ── Dark mode (scoped to fin-overview-content) ─────────── */
+#fin-overview-content.fin-dark .fin-kpi-main-card,
+#fin-overview-content.fin-dark .fin-chart-card,
+#fin-overview-content.fin-dark .fin-sec-card,
+#fin-overview-content.fin-dark .fin-insights-card,
+#fin-overview-content.fin-dark .fin-activity-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+#fin-overview-content.fin-dark .fin-dash {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+#fin-overview-content.fin-dark .fin-kpi-label,
+#fin-overview-content.fin-dark .fin-kpi-sub,
+#fin-overview-content.fin-dark .fin-sec-label,
+#fin-overview-content.fin-dark .fin-sec-sub,
+#fin-overview-content.fin-dark .fin-chart-sub,
+#fin-overview-content.fin-dark .fin-formula-bar {
+  color: #64748b;
+}
+
+#fin-overview-content.fin-dark .fin-kpi-value,
+#fin-overview-content.fin-dark .fin-sec-value,
+#fin-overview-content.fin-dark .fin-chart-header h3,
+#fin-overview-content.fin-dark .fin-insights-card h3,
+#fin-overview-content.fin-dark .fin-activity-card h3,
+#fin-overview-content.fin-dark .fin-activity-table td {
+  color: #f1f5f9;
+}
+
+#fin-overview-content.fin-dark .fin-kpi-main-card.fin-pos .fin-kpi-value { color: #4ade80; }
+#fin-overview-content.fin-dark .fin-kpi-main-card.fin-neg .fin-kpi-value { color: #f87171; }
+
+#fin-overview-content.fin-dark .fin-activity-table th {
+  color: #475569;
+  border-color: #334155;
+}
+
+#fin-overview-content.fin-dark .fin-activity-table td {
+  border-color: rgba(255,255,255,0.04);
+}
+
+#fin-overview-content.fin-dark .fin-activity-table tr:hover td {
+  background: rgba(255,255,255,0.04);
+}
+
+#fin-overview-content.fin-dark .fin-insights-card h3,
+#fin-overview-content.fin-dark .fin-activity-card h3 {
+  border-color: #334155;
+}
+
+#fin-overview-content.fin-dark .fin-insight-good { background: rgba(22,163,74,0.14); }
+#fin-overview-content.fin-dark .fin-insight-warn { background: rgba(245,158,11,0.14); }
+#fin-overview-content.fin-dark .fin-insight-bad  { background: rgba(239,68,68,0.14); }
+#fin-overview-content.fin-dark .fin-insight-info { background: rgba(99,102,241,0.14); }
+
+#fin-overview-content.fin-dark .fin-formula-bar {
+  background: #1e293b;
+}
+
+/* Dark mode toggle button */
+.fin-dark-toggle {
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.fin-dark-toggle:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .fin-kpi-main-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .fin-charts-row {
+    grid-template-columns: 1fr;
+  }
+  .fin-bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .fin-kpi-main-grid   { grid-template-columns: repeat(2, 1fr); }
+  .fin-secondary-grid  { grid-template-columns: repeat(2, 1fr); }
+  .fin-dash            { padding: 12px 14px 20px; gap: 14px; }
+}
+
+@media (max-width: 480px) {
+  .fin-kpi-main-grid   { grid-template-columns: 1fr; }
+  .fin-secondary-grid  { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
    LIGHTBOX — Full-screen image viewer
    ============================================================ */
 

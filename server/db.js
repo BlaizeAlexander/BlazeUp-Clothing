@@ -14,12 +14,13 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // On Render the URL embeds sslmode=require; locally we skip SSL.
-  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: process.env.DATABASE_URL && (
+    process.env.DATABASE_URL.includes('render.com') ||
+    process.env.DATABASE_URL.includes('supabase.com')
+  ) ? { rejectUnauthorized: false } : false,
   max: 10,                  // max simultaneous connections
   idleTimeoutMillis: 30000, // close idle clients after 30s
-  connectionTimeoutMillis: 3000
+  connectionTimeoutMillis: 15000
 });
 
 pool.on('error', (err) => {

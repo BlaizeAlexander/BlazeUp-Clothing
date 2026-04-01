@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — BlazeUp</title>
   <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -39,7 +40,6 @@
         👥 Customers
         <span class="order-count-badge" id="customer-count-badge" style="display:none">0</span>
       </button>
-      <button class="admin-tab" id="tab-discounts" onclick="switchTab('discounts')">🏷️ Discounts</button>
       <button class="admin-tab" id="tab-finance"   onclick="switchTab('finance')">📊 Finance</button>
       <button class="admin-tab" id="tab-settings"  onclick="switchTab('settings')">⚙️ Settings</button>
     </div>
@@ -99,19 +99,6 @@
     </div>
 
     <!-- ══════════════════════════════════════════
-         DISCOUNTS TAB
-    ══════════════════════════════════════════ -->
-    <div id="panel-discounts" class="admin-panel" style="display:none">
-      <div class="admin-panel-header">
-        <h2>Discount Codes</h2>
-        <button class="btn btn-primary" onclick="openDiscountModal()">+ Add Discount</button>
-      </div>
-      <div id="discounts-table-wrap">
-        <p class="admin-loading">Loading discounts...</p>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════
          FINANCE TAB
     ══════════════════════════════════════════ -->
     <div id="panel-finance" class="admin-panel" style="display:none">
@@ -138,6 +125,7 @@
               <option value="allTime" selected>All Time</option>
             </select>
             <button class="btn btn-outline" onclick="loadFinanceOverview()">↻ Refresh</button>
+            <button class="fin-dark-toggle" id="fin-dark-btn" onclick="toggleFinDark()" title="Toggle dark mode">🌙</button>
           </div>
         </div>
         <div id="fin-overview-content">

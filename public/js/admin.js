@@ -53,7 +53,7 @@ async function adminLogout() {
 let _customersPollingTimer = null;
 
 function switchTab(tab) {
-  const tabs = ['products','orders','customers','discounts','finance','settings'];
+  const tabs = ['products','orders','customers','finance','settings'];
   tabs.forEach(t => {
     document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`panel-${t}`).style.display = t === tab ? '' : 'none';
@@ -69,7 +69,6 @@ function switchTab(tab) {
     // Auto-refresh every 20 seconds while on this tab so name changes show without manual refresh
     _customersPollingTimer = setInterval(loadAdminCustomers, 20000);
   }
-  if (tab === 'discounts') loadAdminDiscounts();
   if (tab === 'finance')   { switchFinTab('overview'); loadFinanceOverview(); }
   if (tab === 'settings')  loadSettings();
 }
@@ -432,11 +431,11 @@ async function loadAdminOrders() {
       <table class="admin-table orders-table">
         <thead><tr>
           <th>Date</th><th>Customer</th><th>Contact</th><th>Address</th>
-          <th>Items</th><th>Total</th><th>Screenshot</th><th>Status</th>
+          <th>Items</th><th>Total</th><th>Screenshot</th><th>Status</th><th></th>
         </tr></thead>
         <tbody>
           ${orders.map(o => `
-            <tr>
+            <tr id="order-row-${o.id}">
               <td class="date-cell">${formatDate(o.createdAt)}</td>
               <td><strong>${o.customerName}</strong></td>
               <td>${o.contact}</td>
@@ -458,6 +457,9 @@ async function loadAdminOrders() {
                   <option value="cancelled" ${o.status==='cancelled' ?'selected':''}>❌ Cancelled</option>
                 </select>
               </td>
+              <td>
+                <button class="btn btn-small admin-delete-btn" onclick="deleteOrder('${o.id}')">Delete</button>
+              </td>
             </tr>`).join('')}
         </tbody>
       </table></div>`;
@@ -473,6 +475,23 @@ async function updateOrderStatus(orderId, selectEl) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: selectEl.value })
   });
+}
+
+async function deleteOrder(orderId) {
+  if (!confirm('Delete this order? This cannot be undone.')) return;
+  const res = await fetch(`/api/admin/orders/${orderId}`, {
+    method: 'DELETE', credentials: 'include'
+  });
+  if (res.ok) {
+    document.getElementById(`order-row-${orderId}`)?.remove();
+    // Update badge count
+    const badge = document.getElementById('order-count-badge');
+    const remaining = document.querySelectorAll('#orders-table-wrap tbody tr').length;
+    badge.textContent   = remaining;
+    badge.style.display = remaining ? '' : 'none';
+  } else {
+    alert('Could not delete order.');
+  }
 }
 
 function viewScreenshot(src) {
@@ -828,48 +847,351 @@ function switchFinTab(tab) {
 // FINANCE — OVERVIEW
 // ════════════════════════════════════════════════════════════
 
+// Active Chart.js instances — destroyed before each re-render
+let _finActiveCharts = {};
+
 async function loadFinanceOverview(period) {
   const el        = document.getElementById('fin-overview-content');
   const periodSel = document.getElementById('fin-period-select');
   const p         = period || (periodSel ? periodSel.value : 'allTime');
 
-  try {
-    const res = await fetch(`/api/admin/finance/overview?period=${p}`, { credentials: 'include' });
-    const d   = await res.json();
+  el.innerHTML = `<div class="fin-loading"><div class="fin-spinner"></div><p>Loading dashboard…</p></div>`;
 
-    // Helper: format positive/negative with color
-    const signed = (v) => {
-      const cls = v >= 0 ? 'kpi-positive' : 'kpi-negative';
-      return { val: '₱' + fmt(Math.abs(v)), cls, prefix: v < 0 ? '−' : '' };
-    };
-    const gp  = signed(d.grossProfit);
-    const op  = signed(d.operatingProfit);
-    const cp  = signed(d.estCashPosition);
+  try {
+    const [overviewRes, ordersRes, expensesRes] = await Promise.all([
+      fetch(`/api/admin/finance/overview?period=${p}`, { credentials: 'include' }),
+      fetch('/api/admin/orders',                        { credentials: 'include' }),
+      fetch('/api/admin/expenses',                      { credentials: 'include' })
+    ]);
+
+    const d        = await overviewRes.json();
+    const orders   = await ordersRes.json();
+    const expenses = await expensesRes.json();
+
+    const monthly  = _finCalcMonthly(orders, expenses);
+    const insights = _finCalcInsights(d);
+    const recent   = orders.slice(0, 8);
+
+    // sign helper — returns prefix string and whether positive
+    const sig = v => ({ pfx: v >= 0 ? '₱' : '−₱', abs: Math.abs(v), pos: v >= 0 });
+    const op = sig(d.operatingProfit);
+    const cp = sig(d.estCashPosition);
 
     el.innerHTML = `
-      <div class="fin-kpi-grid">
-        ${kpiCard('📦 Inventory Value',      '₱' + fmt(d.inventoryValue),        'Current stock × cost price of each product')}
-        ${kpiCard('💰 Total Revenue',        '₱' + fmt(d.totalRevenue),          `${d.paidOrders} confirmed/shipped/delivered orders`)}
-        ${kpiCard('⏳ Pending Revenue',       '₱' + fmt(d.pendingRevenue),        `${d.pendingOrders} orders awaiting confirmation`)}
-        ${kpiCard('🏭 Cost of Goods Sold',   '₱' + fmt(d.cogs),                  'Sum of item cost × qty for confirmed orders')}
-        ${kpiCard('📈 Gross Profit',         gp.prefix + gp.val,                 'Revenue − Cost of Goods Sold', gp.cls)}
-        ${kpiCard('💸 Operating Expenses',   '₱' + fmt(d.totalExpenses),         'All recorded business expenses')}
-        ${kpiCard('💵 Operating Profit',     op.prefix + op.val,                 'Gross Profit − Expenses', op.cls)}
-        ${kpiCard('🧾 Outstanding Receivables', '₱' + fmt(d.outstandingReceivables), 'Money owed to you (pending/overdue)')}
-        ${kpiCard('📤 Outstanding Payables', '₱' + fmt(d.outstandingPayables),   'Money you owe (unpaid/partial)')}
-        ${kpiCard('🏦 Est. Cash Position',   cp.prefix + cp.val,                 'Operating Profit − Outstanding Payables', cp.cls)}
+    <div class="fin-dash">
+
+      <!-- ── 5 Big KPI Cards ──────────────────────── -->
+      <div class="fin-kpi-main-grid">
+        ${_finBigCard('Total Revenue',      d.totalRevenue,      d.paidOrders + ' confirmed orders',       '₱',     null)}
+        ${_finBigCard('Net Profit',         d.operatingProfit,   'Gross Profit − Expenses',                op.pfx,  op.pos)}
+        ${_finBigCard('Est. Cash Position', d.estCashPosition,   'Net Profit − Outstanding Payables',      cp.pfx,  cp.pos)}
+        ${_finBigCard('Cost of Goods',      d.cogs,              'Item cost × qty for confirmed orders',   '₱',     null)}
+        ${_finBigCard('Total Expenses',     d.totalExpenses,     'All recorded business expenses',         '₱',     null)}
       </div>
-      <div style="margin-top:16px;padding:12px 20px;background:var(--accent-light);border-radius:6px;font-size:0.82rem;color:var(--text-light)">
-        <strong>Formulas used:</strong>
-        Gross Profit = Revenue − COGS &nbsp;|&nbsp;
-        Operating Profit = Gross Profit − Expenses &nbsp;|&nbsp;
-        Est. Cash Position = Operating Profit − Outstanding Payables
-      </div>`;
+
+      <!-- ── Charts ───────────────────────────────── -->
+      <div class="fin-charts-row">
+        <div class="fin-chart-card">
+          <div class="fin-chart-header">
+            <h3>Revenue vs Expenses</h3>
+            <span class="fin-chart-badge">Last 6 months</span>
+          </div>
+          <div class="fin-chart-wrap">
+            <canvas id="fin-rev-exp-chart"></canvas>
+          </div>
+        </div>
+        <div class="fin-chart-card">
+          <div class="fin-chart-header">
+            <h3>Profit Breakdown</h3>
+            <span class="fin-chart-badge">Current period</span>
+          </div>
+          <div class="fin-chart-wrap">
+            <canvas id="fin-profit-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Secondary Stats ──────────────────────── -->
+      <div class="fin-secondary-grid">
+        ${_finSmallCard('⏳', 'Pending Revenue',         d.pendingRevenue,         d.pendingOrders + ' orders awaiting',  'warn')}
+        ${_finSmallCard('🧾', 'Outstanding Receivables', d.outstandingReceivables, 'Owed to you',                         d.outstandingReceivables > 0 ? 'warn' : 'ok')}
+        ${_finSmallCard('📤', 'Outstanding Payables',    d.outstandingPayables,    'You owe this amount',                 d.outstandingPayables > 0 ? 'danger' : 'ok')}
+        ${_finSmallCard('📦', 'Inventory Value',         d.inventoryValue,         d.totalProducts + ' products tracked', 'accent')}
+      </div>
+
+      <!-- ── Insights + Recent Activity ──────────── -->
+      <div class="fin-bottom-row">
+        <div class="fin-insights-card">
+          <h3>💡 Insights</h3>
+          <ul class="fin-insights-list">
+            ${insights.map(i => `
+              <li class="fin-insight fin-insight-${i.type}">
+                <span class="fin-insight-dot"></span>
+                <span>${i.text}</span>
+              </li>`).join('')}
+          </ul>
+        </div>
+        <div class="fin-activity-card">
+          <h3>Recent Activity</h3>
+          ${recent.length ? `
+          <div class="fin-activity-wrap">
+            <table class="fin-activity-table">
+              <thead><tr>
+                <th>Date</th><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                ${recent.map(o => `
+                  <tr>
+                    <td>${new Date(o.createdAt).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })}</td>
+                    <td class="fin-mono">#${String(o.id).slice(0, 8)}&hellip;</td>
+                    <td>${o.customerName || '—'}</td>
+                    <td class="fin-amt">₱${fmt(o.total)}</td>
+                    <td><span class="fin-status-badge status-${o.status}">${o.status}</span></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : '<p class="admin-empty" style="padding:20px 0">No orders yet.</p>'}
+        </div>
+      </div>
+
+      <!-- ── Formula Reference ─────────────────── -->
+      <div class="fin-formula-bar">
+        <strong>Formulas:</strong>&nbsp;
+        Gross Profit = Revenue − COGS &nbsp;·&nbsp;
+        Net Profit = Gross Profit − Expenses &nbsp;·&nbsp;
+        Est. Cash Position = Net Profit − Outstanding Payables
+      </div>
+
+    </div>`;
+
+    requestAnimationFrame(() => {
+      _finRenderCharts(d, monthly);
+      _finAnimateCounters(el);
+    });
+
   } catch {
     el.innerHTML = '<p class="admin-empty">Could not load overview.</p>';
   }
 }
 
+// ── Big KPI card builder ──────────────────────────────────
+function _finBigCard(label, rawValue, sub, prefix, isPositive) {
+  const abs      = Math.abs(rawValue);
+  const posClass = isPositive === null ? '' : (isPositive ? 'fin-pos' : 'fin-neg');
+  const arrow    = isPositive === null ? ''
+    : `<span class="fin-trend-arrow ${isPositive ? 'fin-pos' : 'fin-neg'}">${isPositive ? '↑' : '↓'}</span>`;
+  return `
+    <div class="fin-kpi-main-card ${posClass}" data-target="${abs}">
+      <div class="fin-kpi-top">${arrow}</div>
+      <p class="fin-kpi-label">${label}</p>
+      <p class="fin-kpi-value">${prefix}<span class="fin-counter">${fmt(abs)}</span></p>
+      <p class="fin-kpi-sub">${sub}</p>
+    </div>`;
+}
+
+// ── Secondary (small) card builder ───────────────────────
+function _finSmallCard(icon, label, value, sub, type) {
+  return `
+    <div class="fin-sec-card fin-sec-${type}">
+      <div class="fin-sec-top">
+        <span class="fin-sec-icon">${icon}</span>
+        <span class="fin-sec-label">${label}</span>
+      </div>
+      <p class="fin-sec-value">₱${fmt(value)}</p>
+      <p class="fin-sec-sub">${sub}</p>
+    </div>`;
+}
+
+// ── Insights generator ────────────────────────────────────
+function _finCalcInsights(d) {
+  const ins    = [];
+  const margin = d.totalRevenue > 0 ? (d.operatingProfit / d.totalRevenue * 100) : null;
+
+  if (margin !== null) {
+    if (margin >= 30)
+      ins.push({ text: `Strong profit margin at ${margin.toFixed(1)}% — business is healthy.`, type: 'good' });
+    else if (margin >= 10)
+      ins.push({ text: `Moderate profit margin at ${margin.toFixed(1)}% — consider reducing costs.`, type: 'warn' });
+    else
+      ins.push({ text: `Low profit margin at ${margin.toFixed(1)}% — review COGS and expenses urgently.`, type: 'bad' });
+  }
+
+  if (d.estCashPosition > 0)
+    ins.push({ text: `Positive cash position of ₱${fmt(d.estCashPosition)} — solid financial health.`, type: 'good' });
+  else if (d.estCashPosition < 0)
+    ins.push({ text: `Negative cash position — outstanding payables exceed net profit.`, type: 'bad' });
+
+  if (d.outstandingReceivables === 0 && d.totalRevenue > 0)
+    ins.push({ text: 'No outstanding receivables — excellent cash collection.', type: 'good' });
+  else if (d.outstandingReceivables > 0)
+    ins.push({ text: `₱${fmt(d.outstandingReceivables)} in receivables pending follow-up.`, type: 'warn' });
+
+  if (d.pendingOrders > 0)
+    ins.push({ text: `${d.pendingOrders} pending order${d.pendingOrders > 1 ? 's' : ''} — ₱${fmt(d.pendingRevenue)} potential revenue.`, type: 'info' });
+
+  if (!ins.length)
+    ins.push({ text: 'No data yet — start recording orders and expenses.', type: 'info' });
+
+  return ins;
+}
+
+// ── Monthly chart data ────────────────────────────────────
+function _finCalcMonthly(orders, expenses) {
+  const PAID   = ['confirmed', 'shipped', 'delivered'];
+  const now    = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const rev = Object.fromEntries(months.map(m => [m, 0]));
+  const exp = Object.fromEntries(months.map(m => [m, 0]));
+
+  orders.forEach(o => {
+    if (PAID.includes(o.status) && o.createdAt) {
+      const m = String(o.createdAt).slice(0, 7);
+      if (m in rev) rev[m] += o.total || 0;
+    }
+  });
+
+  expenses.forEach(e => {
+    if (e.date) {
+      const m = String(e.date).slice(0, 7);
+      if (m in exp) exp[m] += e.amount || 0;
+    }
+  });
+
+  const labels = months.map(m => {
+    const [yr, mo] = m.split('-');
+    return new Date(yr, parseInt(mo) - 1).toLocaleDateString('en-PH', { month: 'short', year: '2-digit' });
+  });
+
+  return { labels, revenue: months.map(m => rev[m]), expenses: months.map(m => exp[m]) };
+}
+
+// ── Chart.js rendering ────────────────────────────────────
+function _finRenderCharts(d, monthly) {
+  Object.values(_finActiveCharts).forEach(c => c && c.destroy && c.destroy());
+  _finActiveCharts = {};
+
+  if (typeof Chart === 'undefined') return;
+
+  // Line chart — Revenue vs Expenses
+  const c1 = document.getElementById('fin-rev-exp-chart');
+  if (c1) {
+    _finActiveCharts.line = new Chart(c1, {
+      type: 'line',
+      data: {
+        labels: monthly.labels,
+        datasets: [
+          {
+            label: 'Revenue',
+            data: monthly.revenue,
+            borderColor: '#16a34a',
+            backgroundColor: 'rgba(22,163,74,0.08)',
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointBackgroundColor: '#16a34a',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'Expenses',
+            data: monthly.expenses,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.06)',
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointBackgroundColor: '#ef4444',
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 }, usePointStyle: true, padding: 16 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ₱${fmt(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: {
+              font: { size: 11 },
+              callback: v => '₱' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v)
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Doughnut chart — Profit Breakdown
+  const c2 = document.getElementById('fin-profit-chart');
+  if (c2) {
+    const profit = Math.max(0, d.operatingProfit);
+    _finActiveCharts.donut = new Chart(c2, {
+      type: 'doughnut',
+      data: {
+        labels: ['Revenue', 'COGS', 'Expenses', 'Net Profit'],
+        datasets: [{
+          data: [d.totalRevenue, d.cogs, d.totalExpenses, profit],
+          backgroundColor: ['#3a8a3a', '#f59e0b', '#ef4444', '#16a34a'],
+          borderWidth: 2,
+          borderColor: '#fff',
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 }, usePointStyle: true, padding: 12 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ₱${fmt(ctx.parsed)}` } }
+        }
+      }
+    });
+  }
+}
+
+// ── Animated number counters ──────────────────────────────
+function _finAnimateCounters(container) {
+  container.querySelectorAll('[data-target]').forEach(card => {
+    const target  = parseFloat(card.dataset.target) || 0;
+    const counter = card.querySelector('.fin-counter');
+    if (!counter || !target) return;
+    const duration = 900;
+    const start    = performance.now();
+    const tick     = (now) => {
+      const t     = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      counter.textContent = fmt(target * eased);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+// ── Dark mode toggle ──────────────────────────────────────
+function toggleFinDark() {
+  const btn  = document.getElementById('fin-dark-btn');
+  const wrap = document.getElementById('fin-overview-content');
+  const dark = wrap.classList.toggle('fin-dark');
+  if (btn) btn.textContent = dark ? '☀️' : '🌙';
+  // Re-render charts with updated colors
+  const dash = wrap.querySelector('.fin-dash');
+  if (dash && _finActiveCharts.line) {
+    _finActiveCharts.line.options.scales.y.grid.color = dark
+      ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+    _finActiveCharts.line.update();
+  }
+}
+
+// kpiCard kept for any legacy usage in other panels
 function kpiCard(label, value, sub, extraClass = '') {
   return `
     <div class="fin-kpi-card ${extraClass}">
