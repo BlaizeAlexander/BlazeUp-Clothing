@@ -428,8 +428,8 @@ async function loadAdminOrders() {
               <td class="items-cell">${o.items.map(i => `${i.name} ×${i.qty}`).join('<br/>')}</td>
               <td class="admin-price-cell">₱${parseFloat(o.total).toFixed(2)}</td>
               <td>
-                <img src="/${o.paymentScreenshot}" alt="Payment" class="payment-thumb"
-                  onclick="viewScreenshot('/${o.paymentScreenshot}')"
+                <img src="${o.paymentScreenshot.startsWith('http') ? o.paymentScreenshot : '/' + o.paymentScreenshot}" alt="Payment" class="payment-thumb"
+                  onclick="viewScreenshot('${o.paymentScreenshot.startsWith('http') ? o.paymentScreenshot : '/' + o.paymentScreenshot}')"
                   title="Click to view full screenshot" />
               </td>
               <td>
