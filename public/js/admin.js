@@ -24,7 +24,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeImageMo
 // ── On page load ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAdminAccess();  // redirect away if not admin
-  loadAdminProducts();       // default tab
+  loadInventory();           // default tab
   loadAdminOrders();
   loadAdminDiscounts();
 });
@@ -53,7 +53,7 @@ async function adminLogout() {
 let _customersPollingTimer = null;
 
 function switchTab(tab) {
-  const tabs = ['products','orders','customers','finance','settings'];
+  const tabs = ['inventory','orders','customers','finance','settings'];
   tabs.forEach(t => {
     document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`panel-${t}`).style.display = t === tab ? '' : 'none';
@@ -63,6 +63,7 @@ function switchTab(tab) {
   if (_customersPollingTimer) { clearInterval(_customersPollingTimer); _customersPollingTimer = null; }
 
   // Load data for the selected tab
+  if (tab === 'inventory') loadInventory();
   if (tab === 'orders')    loadAdminOrders();
   if (tab === 'customers') {
     loadAdminCustomers();
@@ -78,58 +79,69 @@ function switchTab(tab) {
 // PRODUCTS
 // ════════════════════════════════════════════════════════════
 
-async function loadAdminProducts() {
-  const wrap = document.getElementById('products-table-wrap');
+async function loadInventory() {
+  const el = document.getElementById('inventory-content');
+  el.innerHTML = `<p class="admin-loading">Loading...</p>`;
   try {
     const res      = await fetch('/api/products', { credentials: 'include' });
     const products = await res.json();
 
     if (!products.length) {
-      wrap.innerHTML = '<p class="admin-empty">No products yet. Click "Add New Product" to get started.</p>';
+      el.innerHTML = '<p class="admin-empty">No products yet. Click "+ Add Product" to get started.</p>';
       return;
     }
 
-    wrap.innerHTML = `<div class="admin-table-scroll">
-      <table class="admin-table">
+    const inventoryValue = products.reduce((s, p) => s + ((p.costPrice || 0) * (p.stockQuantity || 0)), 0);
+
+    el.innerHTML = `
+      <div style="padding:14px 24px 8px;font-size:0.9rem;color:var(--text-light)">
+        Total Inventory Value: <strong style="color:var(--primary)">₱${fmt(inventoryValue)}</strong>
+        &nbsp;·&nbsp; <span style="font-size:0.8rem">⚠️ qty ≤ 5 = low stock</span>
+      </div>
+      <div class="admin-table-scroll"><table class="admin-table">
         <thead><tr>
-          <th>Photo</th><th>Name</th><th>Category</th>
-          <th>Price</th><th>Stock</th><th>Actions</th>
+          <th>Photo</th><th>Product</th><th>Category</th><th>Stock</th>
+          <th>Cost (₱)</th><th>Sell (₱)</th><th>Margin</th><th>Actions</th>
         </tr></thead>
         <tbody>
           ${products.map(p => {
-            const imgs     = p.images && p.images.length ? p.images : [p.image];
-            const variants = p.variants && p.variants.length
-              ? p.variants.map(v => `<span class="variant-tag">${v.name} ₱${v.price}</span>`).join(' ')
-              : '<span style="color:var(--text-light);font-size:0.8rem">—</span>';
-            const stock    = p.stockQuantity !== undefined ? p.stockQuantity : '—';
-            const lowStock = typeof p.stockQuantity === 'number' && p.stockQuantity <= 5
-              ? '<span class="low-stock-badge">Low</span>' : '';
+            const imgs   = p.images && p.images.length ? p.images : [p.image];
+            const stock  = p.stockQuantity !== undefined ? p.stockQuantity : 0;
+            const cost   = parseFloat(p.costPrice || 0);
+            const sell   = parseFloat(p.price || 0);
+            const low    = typeof stock === 'number' && stock <= 5;
+            const margin = sell > 0 && cost > 0 ? ((sell - cost) / sell * 100).toFixed(1) : '—';
+            const marginColor = margin !== '—'
+              ? (parseFloat(margin) < 20 ? '#dc3545' : parseFloat(margin) < 40 ? '#ffc107' : '#28a745')
+              : 'var(--text-light)';
             return `
-              <tr>
+              <tr class="${low ? 'low-stock-row' : ''}">
                 <td>
                   <div class="admin-img-preview-row" style="gap:4px">
-                    ${imgs.slice(0,3).map(src => `
+                    ${imgs.slice(0,1).map(src => `
                       <img src="${src}" alt="${p.name}" class="admin-product-thumb"
                         onerror="this.style.background='#e8f5e8';this.src=''" />`).join('')}
                   </div>
                 </td>
                 <td>
-                  <strong>${p.name}</strong><br/>
-                  <small style="color:var(--text-light)">${variants}</small>
+                  <strong>${p.name}</strong>
+                  ${low ? '<br><span class="low-stock-badge">Low Stock</span>' : ''}
                 </td>
                 <td style="font-size:0.85rem;color:var(--text-light)">${p.category || '—'}</td>
-                <td class="admin-price-cell">₱${parseFloat(p.price).toFixed(2)}</td>
-                <td>${stock} ${lowStock}</td>
+                <td>${stock}</td>
+                <td class="admin-price-cell">₱${cost.toFixed(2)}</td>
+                <td class="admin-price-cell">₱${sell.toFixed(2)}</td>
+                <td><span style="color:${marginColor};font-weight:700">${margin !== '—' ? margin + '%' : '—'}</span></td>
                 <td class="admin-actions-cell">
                   <button class="btn btn-small admin-edit-btn" onclick="openEditModal('${p.id}')">✏️ Edit</button>
-                  <button class="btn btn-small admin-delete-btn" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">🗑️ Delete</button>
+                  <button class="btn btn-small admin-delete-btn" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">🗑️</button>
                 </td>
               </tr>`;
           }).join('')}
         </tbody>
       </table></div>`;
   } catch {
-    wrap.innerHTML = '<p class="admin-empty">Could not load products.</p>';
+    el.innerHTML = '<p class="admin-empty">Could not load inventory.</p>';
   }
 }
 
@@ -392,7 +404,7 @@ async function saveProduct(event) {
       return;
     }
     closeProductModal();
-    loadAdminProducts();
+    loadInventory();
   } catch (err) {
     clearTimeout(safetyTimer);
     errorBox.textContent   = err.message || 'Cannot reach server.';
@@ -404,7 +416,7 @@ async function saveProduct(event) {
 async function deleteProduct(id, name) {
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE', credentials: 'include' });
-  if (res.ok) loadAdminProducts();
+  if (res.ok) loadInventory();
   else alert('Could not delete product.');
 }
 
@@ -829,13 +841,12 @@ let _currentFinTab = 'overview';
 
 function switchFinTab(tab) {
   _currentFinTab = tab;
-  const finTabs = ['overview','inventory','receivables','payables','expenses'];
+  const finTabs = ['overview','receivables','payables','expenses'];
   finTabs.forEach(t => {
     document.getElementById(`fin-tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`fin-panel-${t}`).style.display = t === tab ? '' : 'none';
   });
   if (tab === 'overview')     loadFinanceOverview();
-  if (tab === 'inventory')    loadFinanceInventory();
   if (tab === 'receivables')  loadFinanceReceivables();
   if (tab === 'payables')     loadFinancePayables();
   if (tab === 'expenses')     loadFinanceExpenses();
@@ -1237,98 +1248,6 @@ function kpiCard(label, value, sub, extraClass = '') {
 }
 
 
-// ════════════════════════════════════════════════════════════
-// FINANCE — INVENTORY
-// ════════════════════════════════════════════════════════════
-
-async function loadFinanceInventory() {
-  const el = document.getElementById('fin-inventory-content');
-  el.innerHTML = `<p class="admin-loading">Loading...</p>`;
-  try {
-    const res      = await fetch('/api/products', { credentials: 'include' });
-    const products = await res.json();
-
-    if (!products.length) { el.innerHTML = '<p class="admin-empty">No products found.</p>'; return; }
-
-    const inventoryValue = products.reduce((s, p) => s + ((p.costPrice || 0) * (p.stockQuantity || 0)), 0);
-
-    el.innerHTML = `
-      <div style="padding:16px 24px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <p style="font-size:0.9rem;color:var(--text-light)">
-          Total Inventory Value: <strong style="color:var(--primary)">₱${fmt(inventoryValue)}</strong>
-          &nbsp;·&nbsp; <span style="font-size:0.8rem">⚠️ qty ≤ 5 = low stock</span>
-        </p>
-        <button class="btn btn-primary btn-small" onclick="openProductModal()">+ Add Product</button>
-      </div>
-      <div class="admin-table-scroll"><table class="admin-table">
-        <thead><tr>
-          <th>Photo</th><th>Product</th><th>Category</th><th>Stock</th>
-          <th>Cost (₱)</th><th>Sell (₱)</th><th>Margin</th><th>Actions</th>
-        </tr></thead>
-        <tbody>
-          ${products.map(p => {
-            const imgs  = p.images && p.images.length ? p.images : [p.image];
-            const stock = p.stockQuantity !== undefined ? p.stockQuantity : 0;
-            const cost  = parseFloat(p.costPrice || 0);
-            const sell  = parseFloat(p.price || 0);
-            const low   = typeof stock === 'number' && stock <= 5;
-            const margin = sell > 0 && cost > 0 ? ((sell - cost) / sell * 100).toFixed(1) : '—';
-            const marginColor = margin !== '—'
-              ? (parseFloat(margin) < 20 ? '#dc3545' : parseFloat(margin) < 40 ? '#ffc107' : '#28a745')
-              : 'var(--text-light)';
-            return `
-              <tr class="${low ? 'low-stock-row' : ''}">
-                <td>
-                  <div class="admin-img-preview-row" style="gap:4px">
-                    ${imgs.slice(0,1).map(src => `
-                      <img src="${src}" alt="${p.name}" class="admin-product-thumb"
-                        onerror="this.style.background='#e8f5e8';this.src=''" />`).join('')}
-                  </div>
-                </td>
-                <td>
-                  <strong>${p.name}</strong>
-                  ${low ? '<br><span class="low-stock-badge">Low Stock</span>' : ''}
-                </td>
-                <td style="font-size:0.85rem;color:var(--text-light)">${p.category || '—'}</td>
-                <td>${stock}</td>
-                <td>
-                  <input type="number" class="price-cost-input" data-id="${p.id}"
-                    value="${cost.toFixed(2)}" min="0" step="0.01"
-                    style="width:90px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
-                    onchange="updatePriceInline('${p.id}', this, 'cost')" />
-                </td>
-                <td>
-                  <input type="number" class="price-sell-input" data-id="${p.id}"
-                    value="${sell.toFixed(2)}" min="0" step="0.01"
-                    style="width:90px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
-                    onchange="updatePriceInline('${p.id}', this, 'sell')" />
-                </td>
-                <td>
-                  <span class="margin-badge" id="margin-${p.id}"
-                    style="color:${marginColor};font-weight:700">
-                    ${margin !== '—' ? margin + '%' : '—'}
-                  </span>
-                </td>
-                <td class="admin-actions-cell" style="white-space:nowrap">
-                  <button class="btn btn-small btn-outline" onclick="savePriceRow('${p.id}')">💾 Prices</button>
-                  <button class="btn btn-small admin-edit-btn"
-                    onclick="openInventoryModal('${p.id}','${p.name.replace(/'/g,"\\'")}',${stock},${cost},'${p.category||''}')">
-                    📦 Stock
-                  </button>
-                  <button class="btn btn-small admin-edit-btn" onclick="openEditModal('${p.id}')">✏️ Edit</button>
-                  <button class="btn btn-small admin-delete-btn" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">🗑️</button>
-                </td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table></div>
-      <p style="padding:10px 20px;font-size:0.8rem;color:var(--text-light)">
-        Edit cost/sell prices inline → 💾 Prices to save. Use 📦 Stock to update quantity. ✏️ Edit for full product details.
-      </p>`;
-  } catch {
-    el.innerHTML = '<p class="admin-empty">Could not load inventory.</p>';
-  }
-}
 
 function openInventoryModal(id, name, stock, cost, category) {
   document.getElementById('inventory-modal-title').textContent = `Update Inventory — ${name}`;
@@ -1369,8 +1288,7 @@ async function saveInventory(event) {
       return;
     }
     closeInventoryModal();
-    loadFinanceInventory();
-    loadAdminProducts(); // refresh products tab too
+    loadInventory();
   } catch {
     errorBox.textContent = 'Cannot connect.';
     errorBox.style.display = '';
