@@ -89,4 +89,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => console.log(`BlazeUp running on port ${PORT}`));
+// ── Startup migrations ───────────────────────────────────────
+// Safe to re-run on every deploy — IF NOT EXISTS guards each step.
+async function runMigrations() {
+  const { query } = require('./db');
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  console.log('[migrate] settings.shipping_fee OK');
+}
+
+runMigrations()
+  .then(() => app.listen(PORT, () => console.log(`BlazeUp running on port ${PORT}`)))
+  .catch(err => { console.error('[migrate] FAILED:', err.message); process.exit(1); });
