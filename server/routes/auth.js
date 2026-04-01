@@ -136,7 +136,7 @@ router.get('/me', requireLogin, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, username, email, contact, pinned_location, points,
-              role, referral_code, referral_count, referred_by, created_at
+              role, referral_code, referral_count, referred_by, avatar_url, created_at
        FROM users WHERE id = $1`,
       [req.user.id]
     );
@@ -153,6 +153,7 @@ router.get('/me', requireLogin, async (req, res, next) => {
       referralCode:  u.referral_code,
       referralCount: u.referral_count,
       referredBy:    u.referred_by,
+      avatarUrl:     u.avatar_url || '',
       createdAt:     u.created_at
     });
   } catch (err) {

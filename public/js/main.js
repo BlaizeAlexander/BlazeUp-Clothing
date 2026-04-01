@@ -373,6 +373,19 @@ async function loadDashboard() {
     document.getElementById('info-contact').textContent   = user.contact || 'Not set';
     document.getElementById('info-referred-by').textContent = user.referredBy || 'Nobody (direct signup)';
 
+    // Set avatar
+    const avatarImg      = document.getElementById('user-avatar-img');
+    const avatarInitials = document.getElementById('user-avatar-initials');
+    if (user.avatarUrl) {
+      avatarImg.src          = user.avatarUrl;
+      avatarImg.style.display = '';
+      avatarInitials.style.display = 'none';
+    } else {
+      avatarInitials.textContent   = (user.username || '?')[0].toUpperCase();
+      avatarInitials.style.display = '';
+      avatarImg.style.display      = 'none';
+    }
+
     // Pre-fill edit form with current values
     const editUsername = document.getElementById('edit-username');
     const editContact  = document.getElementById('edit-contact');
@@ -470,6 +483,37 @@ async function updateProfile(event) {
   }
 }
 
+
+// ── uploadAvatar() ───────────────────────────────────────────
+async function uploadAvatar(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const label = document.querySelector('.avatar-edit-label');
+  if (label) label.textContent = '⏳';
+
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  try {
+    const res  = await fetch('/api/profile/avatar', { method: 'POST', credentials: 'include', body: formData });
+    const data = await res.json();
+    if (res.ok) {
+      const img      = document.getElementById('user-avatar-img');
+      const initials = document.getElementById('user-avatar-initials');
+      img.src              = data.avatarUrl;
+      img.style.display    = '';
+      initials.style.display = 'none';
+    } else {
+      alert(data.error || 'Could not upload photo.');
+    }
+  } catch {
+    alert('Cannot connect to server.');
+  } finally {
+    if (label) label.textContent = '📷';
+    input.value = '';
+  }
+}
 
 // ── loadMyOrders() ────────────────────────────────────────────
 // Fetches and displays the logged-in user's order history

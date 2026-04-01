@@ -5,6 +5,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware/auth');
+const { uploadAvatar, handleUploadError, uploadToSupabase } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -44,6 +45,24 @@ router.put('/profile', requireLogin, async (req, res, next) => {
     res.json({ success: true, username: rows[0].username });
   } catch (err) { next(err); }
 });
+
+// POST /api/profile/avatar — upload or replace profile picture
+router.post('/profile/avatar', requireLogin,
+  (req, res, next) => {
+    uploadAvatar.single('avatar')(req, res, err => {
+      if (err) return handleUploadError(err, req, res, next);
+      next();
+    });
+  },
+  async (req, res, next) => {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
+    try {
+      const avatarUrl = await uploadToSupabase(req.file, 'products');
+      await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user.id]);
+      res.json({ success: true, avatarUrl });
+    } catch (err) { next(err); }
+  }
+);
 
 // DELETE /api/admin/customers/:id — admin removes a customer account
 router.delete('/admin/customers/:id', requireLogin, requireAdmin, async (req, res, next) => {

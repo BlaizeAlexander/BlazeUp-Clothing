@@ -54,9 +54,12 @@ async function uploadToSupabase(file, bucket) {
 const memStorage = multer.memoryStorage();
 const opts = { storage: memStorage, limits: { fileSize: MAX_BYTES }, fileFilter };
 
+const avatarOpts = { storage: memStorage, limits: { fileSize: 2 * 1024 * 1024 }, fileFilter };
+
 const uploadPayment = multer(opts);
 const uploadProduct = multer(opts);
 const uploadQR      = multer(opts);
+const uploadAvatar  = multer(avatarOpts);
 
 function handleUploadError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
@@ -71,4 +74,4 @@ function handleUploadError(err, req, res, next) {
   next(err);
 }
 
-module.exports = { uploadPayment, uploadProduct, uploadQR, handleUploadError, uploadToSupabase };
+module.exports = { uploadPayment, uploadProduct, uploadQR, uploadAvatar, handleUploadError, uploadToSupabase };

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   referral_count  INTEGER     NOT NULL DEFAULT 0,
   referred_by     UUID        REFERENCES users(id) ON DELETE SET NULL,
   status          TEXT        NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','denied')),
+  avatar_url      TEXT        NOT NULL DEFAULT '',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

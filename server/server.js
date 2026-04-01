@@ -97,6 +97,8 @@ async function runMigrations() {
   console.log('[migrate] settings.shipping_fee OK');
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','denied'))`);
   console.log('[migrate] users.status OK');
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT ''`);
+  console.log('[migrate] users.avatar_url OK');
 }
 
 runMigrations()
