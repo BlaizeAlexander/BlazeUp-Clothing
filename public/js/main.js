@@ -267,7 +267,7 @@ async function registerUser(event) {
     const data = await response.json();
 
     if (response.ok) {
-      successBox.textContent = 'Registration submitted! Your account is pending admin approval. You\'ll be able to log in once approved.';
+      successBox.textContent = 'Registration received! Awaiting approval. If you don\'t hear back soon, please contact us directly.';
       showElement('success-message');
       document.getElementById('register-form').style.display = 'none';
     } else {
