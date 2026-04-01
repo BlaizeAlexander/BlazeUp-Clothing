@@ -1530,6 +1530,10 @@ img {
 /* ── RESPONSIVE — smaller screens ───────────────────────────
    Makes the site work on phones too */
 @media (max-width: 600px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+
   .navbar {
     padding: 0 16px;
     height: 68px;
