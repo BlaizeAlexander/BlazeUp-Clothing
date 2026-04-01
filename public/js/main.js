@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateCartBadge();
   setupLightboxInteractions();
   loadShippingFee();
+  loadSocialLinks();
 
   if (window.location.pathname.includes('dashboard.html')) {
     loadDashboard();
@@ -900,6 +901,21 @@ async function loadShippingFee() {
       _shippingFee = data.shippingFee || 0;
     }
   } catch { /* non-critical, default to 0 */ }
+}
+
+async function loadSocialLinks() {
+  try {
+    const res = await fetch('/api/social-links');
+    if (!res.ok) return;
+    const { facebookUrl, instagramUrl, telegramUrl } = await res.json();
+    const map = { 'social-facebook': facebookUrl, 'social-instagram': instagramUrl, 'social-telegram': telegramUrl };
+    Object.entries(map).forEach(([id, url]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (url) { el.href = url; el.style.display = ''; }
+      else { el.style.display = 'none'; }
+    });
+  } catch { /* non-critical */ }
 }
 
 function getPointsDiscount(subtotal, discountAmt) {

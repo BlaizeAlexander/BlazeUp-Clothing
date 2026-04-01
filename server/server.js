@@ -99,6 +99,10 @@ async function runMigrations() {
   console.log('[migrate] users.status OK');
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT ''`);
   console.log('[migrate] users.avatar_url OK');
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url  TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_url TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS telegram_url  TEXT NOT NULL DEFAULT ''`);
+  console.log('[migrate] settings.social_urls OK');
 }
 
 runMigrations()

@@ -332,6 +332,28 @@
         </form>
       </div>
 
+      <!-- ── Settings: Social Media ───────────── -->
+      <div class="settings-section">
+        <h3>🔗 Social Media Links</h3>
+        <p class="settings-desc">These links appear as icons in the store footer. Leave blank to hide an icon.</p>
+        <form id="settings-social-form" onsubmit="saveSocialSettings(event)">
+          <div class="settings-field">
+            <label>Facebook URL</label>
+            <input type="url" id="setting-facebook-url" placeholder="https://facebook.com/yourpage" />
+          </div>
+          <div class="settings-field">
+            <label>Instagram URL</label>
+            <input type="url" id="setting-instagram-url" placeholder="https://instagram.com/yourhandle" />
+          </div>
+          <div class="settings-field">
+            <label>Telegram URL</label>
+            <input type="url" id="setting-telegram-url" placeholder="https://t.me/yourchannel" />
+          </div>
+          <div id="settings-social-msg" class="success-box" style="display:none">Social links saved!</div>
+          <button type="submit" class="btn btn-primary">Save Social Links</button>
+        </form>
+      </div>
+
     </div><!-- /panel-settings -->
 
   </div><!-- /admin-page -->

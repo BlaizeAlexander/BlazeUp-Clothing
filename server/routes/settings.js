@@ -14,7 +14,10 @@ const mapSettings = r => ({
   purchasePointsRate:   parseFloat(r.purchase_points_rate),
   referralRewardPoints: r.referral_reward_points,
   paymentQrCodePath:    r.payment_qr_code_path,
-  shippingFee:          parseFloat(r.shipping_fee)
+  shippingFee:          parseFloat(r.shipping_fee),
+  facebookUrl:          r.facebook_url  || '',
+  instagramUrl:         r.instagram_url || '',
+  telegramUrl:          r.telegram_url  || ''
 });
 
 // GET /api/admin/settings
@@ -30,20 +33,27 @@ router.put('/admin/settings', requireLogin, requireAdmin, async (req, res, next)
   try {
     const current = await query('SELECT * FROM settings WHERE id = 1');
     const cur = current.rows[0];
-    const { pointsSystemEnabled, purchasePointsRate, referralRewardPoints, shippingFee } = req.body;
+    const { pointsSystemEnabled, purchasePointsRate, referralRewardPoints, shippingFee,
+            facebookUrl, instagramUrl, telegramUrl } = req.body;
 
     const { rows } = await query(`
       UPDATE settings SET
         points_system_enabled  = $1,
         purchase_points_rate   = $2,
         referral_reward_points = $3,
-        shipping_fee           = $4
+        shipping_fee           = $4,
+        facebook_url           = $5,
+        instagram_url          = $6,
+        telegram_url           = $7
       WHERE id = 1 RETURNING *
     `, [
       pointsSystemEnabled  !== undefined ? !!pointsSystemEnabled             : cur.points_system_enabled,
       purchasePointsRate   !== undefined ? parseFloat(purchasePointsRate)    : cur.purchase_points_rate,
       referralRewardPoints !== undefined ? parseInt(referralRewardPoints, 10): cur.referral_reward_points,
-      shippingFee          !== undefined ? parseFloat(shippingFee)           : cur.shipping_fee
+      shippingFee          !== undefined ? parseFloat(shippingFee)           : cur.shipping_fee,
+      facebookUrl          !== undefined ? (facebookUrl  || '')              : (cur.facebook_url  || ''),
+      instagramUrl         !== undefined ? (instagramUrl || '')              : (cur.instagram_url || ''),
+      telegramUrl          !== undefined ? (telegramUrl  || '')              : (cur.telegram_url  || '')
     ]);
     res.json({ success: true, settings: mapSettings(rows[0]) });
   } catch (err) { next(err); }
@@ -72,6 +82,15 @@ router.get('/payment-qr', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT payment_qr_code_path FROM settings WHERE id = 1');
     res.json({ path: rows[0]?.payment_qr_code_path || '' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/social-links — public: footer uses this to show social icons
+router.get('/social-links', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT facebook_url, instagram_url, telegram_url FROM settings WHERE id = 1');
+    const r = rows[0] || {};
+    res.json({ facebookUrl: r.facebook_url || '', instagramUrl: r.instagram_url || '', telegramUrl: r.telegram_url || '' });
   } catch (err) { next(err); }
 });
 

@@ -1537,10 +1537,13 @@ async function loadSettings() {
     const res      = await fetch('/api/admin/settings', { credentials: 'include' });
     const settings = await res.json();
 
-    document.getElementById('setting-points-enabled').checked = !!settings.pointsSystemEnabled;
-    document.getElementById('setting-purchase-rate').value    = settings.purchasePointsRate ?? 1;
-    document.getElementById('setting-referral-pts').value     = settings.referralRewardPoints ?? 50;
-    document.getElementById('setting-shipping-fee').value     = settings.shippingFee ?? 0;
+    document.getElementById('setting-points-enabled').checked  = !!settings.pointsSystemEnabled;
+    document.getElementById('setting-purchase-rate').value     = settings.purchasePointsRate ?? 1;
+    document.getElementById('setting-referral-pts').value      = settings.referralRewardPoints ?? 50;
+    document.getElementById('setting-shipping-fee').value      = settings.shippingFee ?? 0;
+    document.getElementById('setting-facebook-url').value      = settings.facebookUrl  || '';
+    document.getElementById('setting-instagram-url').value     = settings.instagramUrl || '';
+    document.getElementById('setting-telegram-url').value      = settings.telegramUrl  || '';
 
     // Show current QR code
     const qrBox = document.getElementById('qr-preview-box');
@@ -1581,6 +1584,31 @@ async function savePointsSettings(event) {
       alert('Could not save settings.');
     }
   } catch { alert('Could not save settings.'); }
+}
+
+async function saveSocialSettings(event) {
+  event.preventDefault();
+  try {
+    const msg = document.getElementById('settings-social-msg');
+    msg.style.display = 'none';
+
+    const body = {
+      facebookUrl:  document.getElementById('setting-facebook-url').value.trim(),
+      instagramUrl: document.getElementById('setting-instagram-url').value.trim(),
+      telegramUrl:  document.getElementById('setting-telegram-url').value.trim()
+    };
+
+    const res = await fetch('/api/admin/settings', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      msg.style.display = '';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    } else {
+      alert('Could not save social links.');
+    }
+  } catch { alert('Could not save social links.'); }
 }
 
 function previewQRFile(input) {
