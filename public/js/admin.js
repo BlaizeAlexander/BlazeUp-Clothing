@@ -1459,17 +1459,17 @@ async function loadSettings() {
 
 async function savePointsSettings(event) {
   event.preventDefault();
-  const msg = document.getElementById('settings-points-msg');
-  msg.style.display = 'none';
-
-  const body = {
-    pointsSystemEnabled:  document.getElementById('setting-points-enabled').checked,
-    purchasePointsRate:   parseFloat(document.getElementById('setting-purchase-rate').value) || 1,
-    referralRewardPoints: parseInt(document.getElementById('setting-referral-pts').value) || 50,
-    shippingFee:          parseFloat(document.getElementById('setting-shipping-fee').value) || 0
-  };
-
   try {
+    const msg = document.getElementById('settings-points-msg');
+    msg.style.display = 'none';
+
+    const body = {
+      pointsSystemEnabled:  document.getElementById('setting-points-enabled').checked,
+      purchasePointsRate:   parseFloat(document.getElementById('setting-purchase-rate').value) || 1,
+      referralRewardPoints: parseInt(document.getElementById('setting-referral-pts').value) || 50,
+      shippingFee:          parseFloat(document.getElementById('setting-shipping-fee').value) || 0
+    };
+
     const res = await fetch('/api/admin/settings', {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -1480,7 +1480,7 @@ async function savePointsSettings(event) {
     } else {
       alert('Could not save settings.');
     }
-  } catch { alert('Cannot connect to server.'); }
+  } catch { alert('Could not save settings.'); }
 }
 
 function previewQRFile(input) {
