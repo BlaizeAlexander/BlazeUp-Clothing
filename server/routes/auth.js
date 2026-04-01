@@ -76,26 +76,16 @@ router.post('/register', registerRules, async (req, res, next) => {
       );
       if (referrerRes.rows.length) {
         referredById = referrerRes.rows[0].id;
-        // Award referral points to the referrer
-        const settingsRes = await query('SELECT * FROM settings WHERE id = 1');
-        const s = settingsRes.rows[0];
-        if (s.points_system_enabled) {
-          await query(
-            'UPDATE users SET points = points + $1, referral_count = referral_count + 1 WHERE id = $2',
-            [s.referral_reward_points, referredById]
-          );
-        }
       }
     }
 
-    const { rows } = await query(`
-      INSERT INTO users (username, email, password_hash, contact, referral_code, referred_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, username, email, role
+    await query(`
+      INSERT INTO users (username, email, password_hash, contact, referral_code, referred_by, status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending')
     `, [username, email.toLowerCase(), passwordHash, contact, refCode, referredById]);
 
-    issueToken(res, rows[0]);
-    res.json({ success: true });
+    // No JWT issued — account must be approved by admin first
+    res.json({ success: true, pending: true });
   } catch (err) {
     next(err);
   }
@@ -119,6 +109,13 @@ router.post('/login', loginRules, async (req, res, next) => {
 
     if (!user || !match) {
       return res.status(400).json({ error: 'Invalid email or password.' });
+    }
+
+    if (user.status === 'pending') {
+      return res.status(403).json({ error: 'Your account is pending admin approval.' });
+    }
+    if (user.status === 'denied') {
+      return res.status(403).json({ error: 'Your registration was denied. Contact the store for help.' });
     }
 
     issueToken(res, user);
@@ -175,6 +172,56 @@ router.get('/admin/check', (req, res) => {
   } catch {
     res.json({ isAdmin: false });
   }
+});
+
+// ── GET /api/admin/users/pending ─────────────────────────────
+router.get('/admin/users/pending', requireLogin, async (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+  try {
+    const { rows } = await query(
+      `SELECT id, username, email, contact, created_at FROM users WHERE status = 'pending' ORDER BY created_at ASC`
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/users/:id/approve ────────────────────────
+router.post('/admin/users/:id/approve', requireLogin, async (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+  try {
+    const { rows } = await query(
+      `UPDATE users SET status = 'approved' WHERE id = $1 AND status = 'pending' RETURNING id, referred_by`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Pending user not found.' });
+
+    // Award referral points now that the account is approved
+    if (rows[0].referred_by) {
+      const settingsRes = await query('SELECT * FROM settings WHERE id = 1');
+      const s = settingsRes.rows[0];
+      if (s && s.points_system_enabled) {
+        await query(
+          'UPDATE users SET points = points + $1, referral_count = referral_count + 1 WHERE id = $2',
+          [s.referral_reward_points, rows[0].referred_by]
+        );
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/users/:id/deny ───────────────────────────
+router.post('/admin/users/:id/deny', requireLogin, async (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+  try {
+    const { rows } = await query(
+      `UPDATE users SET status = 'denied' WHERE id = $1 AND status = 'pending' RETURNING id`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Pending user not found.' });
+    res.json({ success: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

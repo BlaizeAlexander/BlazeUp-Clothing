@@ -95,6 +95,8 @@ async function runMigrations() {
   const { query } = require('./db');
   await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(12,2) NOT NULL DEFAULT 0`);
   console.log('[migrate] settings.shipping_fee OK');
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','denied'))`);
+  console.log('[migrate] users.status OK');
 }
 
 runMigrations()

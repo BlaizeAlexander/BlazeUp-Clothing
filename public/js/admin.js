@@ -474,10 +474,81 @@ function closeScreenshot() {
 // CUSTOMERS
 // ════════════════════════════════════════════════════════════
 
+async function loadPendingApprovals() {
+  const wrap  = document.getElementById('pending-approvals-wrap');
+  const list  = document.getElementById('pending-list');
+  const badge = document.getElementById('customer-count-badge');
+  try {
+    const res     = await fetch('/api/admin/users/pending', { credentials: 'include' });
+    const pending = await res.json();
+
+    if (!pending.length) {
+      wrap.style.display = 'none';
+      return;
+    }
+
+    // Show badge with pending count
+    badge.textContent   = pending.length;
+    badge.style.display = '';
+
+    wrap.style.display = '';
+    list.innerHTML = `<div class="admin-table-scroll">
+      <table class="admin-table">
+        <thead><tr><th>Username</th><th>Email</th><th>Contact</th><th>Registered</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${pending.map(u => `
+            <tr id="pending-row-${u.id}">
+              <td><strong>${u.username}</strong></td>
+              <td>${u.email}</td>
+              <td>${u.contact || '—'}</td>
+              <td class="date-cell">${formatDate(u.created_at)}</td>
+              <td style="display:flex;gap:8px">
+                <button class="btn btn-small btn-primary" onclick="approveUser('${u.id}')">Approve</button>
+                <button class="btn btn-small admin-delete-btn" onclick="denyUser('${u.id}')">Deny</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  } catch {
+    // non-critical — fail silently
+  }
+}
+
+async function approveUser(id) {
+  try {
+    const res = await fetch(`/api/admin/users/${id}/approve`, { method: 'POST', credentials: 'include' });
+    if (res.ok) {
+      document.getElementById(`pending-row-${id}`)?.remove();
+      loadPendingApprovals();
+      loadAdminCustomers();
+    } else {
+      const d = await res.json();
+      alert(d.error || 'Could not approve user.');
+    }
+  } catch { alert('Cannot connect to server.'); }
+}
+
+async function denyUser(id) {
+  if (!confirm('Deny this registration? The user will be blocked from logging in.')) return;
+  try {
+    const res = await fetch(`/api/admin/users/${id}/deny`, { method: 'POST', credentials: 'include' });
+    if (res.ok) {
+      document.getElementById(`pending-row-${id}`)?.remove();
+      loadPendingApprovals();
+    } else {
+      const d = await res.json();
+      alert(d.error || 'Could not deny user.');
+    }
+  } catch { alert('Cannot connect to server.'); }
+}
+
 async function loadAdminCustomers() {
   const wrap  = document.getElementById('customers-list-wrap');
   const badge = document.getElementById('customer-count-badge');
   closeCustomerDetail();
+
+  // Load pending approvals
+  loadPendingApprovals();
 
   try {
     const res       = await fetch('/api/admin/customers', { credentials: 'include' });

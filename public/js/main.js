@@ -267,14 +267,9 @@ async function registerUser(event) {
     const data = await response.json();
 
     if (response.ok) {
-      // Success! Show message then redirect to dashboard
-      successBox.textContent = 'Account created! Redirecting to your dashboard...';
+      successBox.textContent = 'Registration submitted! Your account is pending admin approval. You\'ll be able to log in once approved.';
       showElement('success-message');
-
-      // Wait 1.5 seconds then go to dashboard
-      setTimeout(() => {
-        window.location.href = 'dashboard.html';
-      }, 1500);
+      document.getElementById('register-form').style.display = 'none';
     } else {
       // Server returned an error (e.g., email already exists)
       showError(errorBox, data.error || 'Something went wrong. Please try again.');
