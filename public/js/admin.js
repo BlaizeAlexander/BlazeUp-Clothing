@@ -5,6 +5,9 @@
 //         and store settings (points, QR code)
 // ============================================================
 
+// ── Module-level customer cache (avoids JSON-in-onclick) ─────
+let _customers = [];
+
 // ── On page load ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAdminAccess();  // redirect away if not admin
@@ -551,13 +554,13 @@ async function loadAdminCustomers() {
   loadPendingApprovals();
 
   try {
-    const res       = await fetch('/api/admin/customers', { credentials: 'include' });
-    const customers = await res.json();
+    const res = await fetch('/api/admin/customers', { credentials: 'include' });
+    _customers = await res.json();
 
-    badge.textContent   = customers.length;
-    badge.style.display = customers.length ? '' : 'none';
+    badge.textContent   = _customers.length;
+    badge.style.display = _customers.length ? '' : 'none';
 
-    if (!customers.length) { wrap.innerHTML = '<p class="admin-empty">No customers yet.</p>'; return; }
+    if (!_customers.length) { wrap.innerHTML = '<p class="admin-empty">No customers yet.</p>'; return; }
 
     wrap.innerHTML = `<div class="admin-table-scroll">
       <table class="admin-table customers-table">
@@ -566,7 +569,7 @@ async function loadAdminCustomers() {
           <th>⭐ Points</th><th>Referred</th><th>Joined</th><th></th>
         </tr></thead>
         <tbody>
-          ${customers.map((c, i) => `
+          ${_customers.map((c, i) => `
             <tr>
               <td style="color:var(--text-light)">${i+1}</td>
               <td><strong>${c.username}</strong>${c.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}</td>
@@ -577,7 +580,7 @@ async function loadAdminCustomers() {
               <td class="date-cell">${formatDate(c.createdAt)}</td>
               <td>
                 <button class="btn btn-small admin-edit-btn"
-                  onclick='showCustomerDetail(${JSON.stringify(c)})'>View</button>
+                  onclick="showCustomerDetail('${c.id}')">View</button>
               </td>
             </tr>`).join('')}
         </tbody>
@@ -587,7 +590,9 @@ async function loadAdminCustomers() {
   }
 }
 
-function showCustomerDetail(customer) {
+function showCustomerDetail(id) {
+  const customer = _customers.find(c => c.id === id);
+  if (!customer) return;
   document.getElementById('detail-username').textContent = `@${customer.username}`;
   const pointsBadgeId = `points-badge-${customer.id}`;
   const pointsInputId = `points-input-${customer.id}`;
