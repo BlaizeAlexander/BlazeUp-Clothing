@@ -829,14 +829,13 @@ let _currentFinTab = 'overview';
 
 function switchFinTab(tab) {
   _currentFinTab = tab;
-  const finTabs = ['overview','inventory','prices','receivables','payables','expenses'];
+  const finTabs = ['overview','inventory','receivables','payables','expenses'];
   finTabs.forEach(t => {
     document.getElementById(`fin-tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`fin-panel-${t}`).style.display = t === tab ? '' : 'none';
   });
   if (tab === 'overview')     loadFinanceOverview();
   if (tab === 'inventory')    loadFinanceInventory();
-  if (tab === 'prices')       loadFinancePrices();
   if (tab === 'receivables')  loadFinanceReceivables();
   if (tab === 'payables')     loadFinancePayables();
   if (tab === 'expenses')     loadFinanceExpenses();
@@ -1244,6 +1243,7 @@ function kpiCard(label, value, sub, extraClass = '') {
 
 async function loadFinanceInventory() {
   const el = document.getElementById('fin-inventory-content');
+  el.innerHTML = `<p class="admin-loading">Loading...</p>`;
   try {
     const res      = await fetch('/api/products', { credentials: 'include' });
     const products = await res.json();
@@ -1256,42 +1256,75 @@ async function loadFinanceInventory() {
       <div style="padding:16px 24px 8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <p style="font-size:0.9rem;color:var(--text-light)">
           Total Inventory Value: <strong style="color:var(--primary)">₱${fmt(inventoryValue)}</strong>
+          &nbsp;·&nbsp; <span style="font-size:0.8rem">⚠️ qty ≤ 5 = low stock</span>
         </p>
-        <p style="font-size:0.8rem;color:var(--text-light)">
-          ⚠️ Items with qty ≤ 5 are flagged as low stock.
-        </p>
+        <button class="btn btn-primary btn-small" onclick="openProductModal()">+ Add Product</button>
       </div>
       <div class="admin-table-scroll"><table class="admin-table">
         <thead><tr>
-          <th>Product</th><th>Category</th><th>Stock</th><th>Cost Price</th>
-          <th>Inventory Value</th><th>Update</th>
+          <th>Photo</th><th>Product</th><th>Category</th><th>Stock</th>
+          <th>Cost (₱)</th><th>Sell (₱)</th><th>Margin</th><th>Actions</th>
         </tr></thead>
         <tbody>
           ${products.map(p => {
-            const stock = p.stockQuantity !== undefined ? p.stockQuantity : null;
-            const cost  = p.costPrice || 0;
-            const value = (cost * (stock || 0)).toFixed(2);
+            const imgs  = p.images && p.images.length ? p.images : [p.image];
+            const stock = p.stockQuantity !== undefined ? p.stockQuantity : 0;
+            const cost  = parseFloat(p.costPrice || 0);
+            const sell  = parseFloat(p.price || 0);
             const low   = typeof stock === 'number' && stock <= 5;
+            const margin = sell > 0 && cost > 0 ? ((sell - cost) / sell * 100).toFixed(1) : '—';
+            const marginColor = margin !== '—'
+              ? (parseFloat(margin) < 20 ? '#dc3545' : parseFloat(margin) < 40 ? '#ffc107' : '#28a745')
+              : 'var(--text-light)';
             return `
               <tr class="${low ? 'low-stock-row' : ''}">
-                <td><strong>${p.name}</strong></td>
-                <td>${p.category || '—'}</td>
                 <td>
-                  ${stock !== null ? stock : '—'}
-                  ${low ? '<span class="low-stock-badge">Low Stock</span>' : ''}
+                  <div class="admin-img-preview-row" style="gap:4px">
+                    ${imgs.slice(0,1).map(src => `
+                      <img src="${src}" alt="${p.name}" class="admin-product-thumb"
+                        onerror="this.style.background='#e8f5e8';this.src=''" />`).join('')}
+                  </div>
                 </td>
-                <td>₱${parseFloat(cost).toFixed(2)}</td>
-                <td class="admin-price-cell">₱${value}</td>
                 <td>
+                  <strong>${p.name}</strong>
+                  ${low ? '<br><span class="low-stock-badge">Low Stock</span>' : ''}
+                </td>
+                <td style="font-size:0.85rem;color:var(--text-light)">${p.category || '—'}</td>
+                <td>${stock}</td>
+                <td>
+                  <input type="number" class="price-cost-input" data-id="${p.id}"
+                    value="${cost.toFixed(2)}" min="0" step="0.01"
+                    style="width:90px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
+                    onchange="updatePriceInline('${p.id}', this, 'cost')" />
+                </td>
+                <td>
+                  <input type="number" class="price-sell-input" data-id="${p.id}"
+                    value="${sell.toFixed(2)}" min="0" step="0.01"
+                    style="width:90px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
+                    onchange="updatePriceInline('${p.id}', this, 'sell')" />
+                </td>
+                <td>
+                  <span class="margin-badge" id="margin-${p.id}"
+                    style="color:${marginColor};font-weight:700">
+                    ${margin !== '—' ? margin + '%' : '—'}
+                  </span>
+                </td>
+                <td class="admin-actions-cell" style="white-space:nowrap">
+                  <button class="btn btn-small btn-outline" onclick="savePriceRow('${p.id}')">💾 Prices</button>
                   <button class="btn btn-small admin-edit-btn"
-                    onclick="openInventoryModal('${p.id}','${p.name.replace(/'/g,"\\'")}',${stock||0},${cost},'${p.category||''}')">
-                    Update
+                    onclick="openInventoryModal('${p.id}','${p.name.replace(/'/g,"\\'")}',${stock},${cost},'${p.category||''}')">
+                    📦 Stock
                   </button>
+                  <button class="btn btn-small admin-edit-btn" onclick="openEditModal('${p.id}')">✏️ Edit</button>
+                  <button class="btn btn-small admin-delete-btn" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">🗑️</button>
                 </td>
               </tr>`;
           }).join('')}
         </tbody>
-      </table></div>`;
+      </table></div>
+      <p style="padding:10px 20px;font-size:0.8rem;color:var(--text-light)">
+        Edit cost/sell prices inline → 💾 Prices to save. Use 📦 Stock to update quantity. ✏️ Edit for full product details.
+      </p>`;
   } catch {
     el.innerHTML = '<p class="admin-empty">Could not load inventory.</p>';
   }
@@ -1345,66 +1378,6 @@ async function saveInventory(event) {
 }
 
 
-// ════════════════════════════════════════════════════════════
-// FINANCE — PRICES
-// ════════════════════════════════════════════════════════════
-
-async function loadFinancePrices() {
-  const el = document.getElementById('fin-prices-content');
-  try {
-    const res      = await fetch('/api/products', { credentials: 'include' });
-    const products = await res.json();
-    if (!products.length) { el.innerHTML = '<p class="admin-empty">No products yet.</p>'; return; }
-
-    el.innerHTML = `
-      <table class="admin-table">
-        <thead><tr>
-          <th>Product</th><th>Cost Price (₱)</th><th>Selling Price (₱)</th>
-          <th>Margin (%)</th><th>Action</th>
-        </tr></thead>
-        <tbody>
-          ${products.map(p => {
-            const cost   = parseFloat(p.costPrice || 0);
-            const sell   = parseFloat(p.price || 0);
-            const margin = sell > 0 && cost > 0 ? ((sell - cost) / sell * 100).toFixed(1) : '—';
-            const marginColor = typeof margin === 'string' && margin !== '—'
-              ? (parseFloat(margin) < 20 ? '#dc3545' : parseFloat(margin) < 40 ? '#ffc107' : '#28a745')
-              : 'var(--text-light)';
-            return `
-              <tr>
-                <td><strong>${p.name}</strong></td>
-                <td>
-                  <input type="number" class="price-cost-input" data-id="${p.id}"
-                    value="${cost.toFixed(2)}" min="0" step="0.01"
-                    style="width:100px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
-                    onchange="updatePriceInline('${p.id}', this, 'cost')" />
-                </td>
-                <td>
-                  <input type="number" class="price-sell-input" data-id="${p.id}"
-                    value="${sell.toFixed(2)}" min="0" step="0.01"
-                    style="width:100px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"
-                    onchange="updatePriceInline('${p.id}', this, 'sell')" />
-                </td>
-                <td>
-                  <span class="margin-badge" id="margin-${p.id}"
-                    style="color:${marginColor};font-weight:700">
-                    ${margin !== '—' ? margin + '%' : '—'}
-                  </span>
-                </td>
-                <td>
-                  <button class="btn btn-small btn-outline" onclick="savePriceRow('${p.id}')">Save</button>
-                </td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-      <p style="padding:12px 20px;font-size:0.8rem;color:var(--text-light)">
-        Edit cost and selling prices inline, then click Save to update.
-      </p>`;
-  } catch {
-    el.innerHTML = '<p class="admin-empty">Could not load prices.</p>';
-  }
-}
 
 // Update margin badge as user types (before saving)
 function updatePriceInline(productId, input, type) {

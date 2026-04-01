@@ -107,7 +107,6 @@
       <div class="finance-subnav">
         <button class="fin-tab active" id="fin-tab-overview"    onclick="switchFinTab('overview')">📈 Overview</button>
         <button class="fin-tab" id="fin-tab-inventory"  onclick="switchFinTab('inventory')">📦 Inventory</button>
-        <button class="fin-tab" id="fin-tab-prices"     onclick="switchFinTab('prices')">💲 Prices</button>
         <button class="fin-tab" id="fin-tab-receivables" onclick="switchFinTab('receivables')">🧾 Receivables</button>
         <button class="fin-tab" id="fin-tab-payables"   onclick="switchFinTab('payables')">📤 Payables</button>
         <button class="fin-tab" id="fin-tab-expenses"   onclick="switchFinTab('expenses')">💸 Expenses</button>
@@ -136,22 +135,11 @@
       <!-- ── Finance: Inventory ─────────────────── -->
       <div id="fin-panel-inventory" style="display:none">
         <div class="admin-panel-header">
-          <h2>Inventory Management</h2>
+          <h2>Inventory</h2>
           <button class="btn btn-outline" onclick="loadFinanceInventory()">↻ Refresh</button>
         </div>
         <div id="fin-inventory-content">
           <p class="admin-loading">Loading inventory...</p>
-        </div>
-      </div>
-
-      <!-- ── Finance: Prices ────────────────────── -->
-      <div id="fin-panel-prices" style="display:none">
-        <div class="admin-panel-header">
-          <h2>Product Pricing</h2>
-          <button class="btn btn-outline" onclick="loadFinancePrices()">↻ Refresh</button>
-        </div>
-        <div id="fin-prices-content">
-          <p class="admin-loading">Loading prices...</p>
         </div>
       </div>
 
