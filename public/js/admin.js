@@ -603,7 +603,18 @@ function showCustomerDetail(customer) {
       </div>`
     : '<p style="color:var(--text-light);font-size:0.88rem;padding:12px 20px">No orders found for this account.</p>';
 
+  const avatarHTML = customer.avatarUrl
+    ? `<img src="${customer.avatarUrl}" alt="Avatar" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block" />`
+    : `<div style="width:72px;height:72px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:700">${(customer.username||'?')[0].toUpperCase()}</div>`;
+
   document.getElementById('customer-detail-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;padding:20px;border-bottom:1px solid var(--border)">
+      ${avatarHTML}
+      <div>
+        <div style="font-weight:700;font-size:1.05rem">@${customer.username}</div>
+        <div style="color:var(--text-light);font-size:0.88rem">${customer.email}</div>
+      </div>
+    </div>
     <div class="detail-grid">
       <div class="detail-item"><span class="detail-label">Username</span><span class="detail-value">@${customer.username}</span></div>
       <div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${customer.email}</span></div>

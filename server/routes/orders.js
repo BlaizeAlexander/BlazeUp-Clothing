@@ -191,6 +191,7 @@ router.get('/admin/customers', requireLogin, requireAdmin, async (req, res, next
       referralCode:  u.referral_code,
       referralCount: u.referral_count,
       referredBy:    u.referred_by,
+      avatarUrl:     u.avatar_url || '',
       createdAt:     u.created_at,
       orders:        byUser[u.id] || []
     })));

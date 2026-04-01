@@ -484,13 +484,32 @@ async function updateProfile(event) {
 }
 
 
-// ── uploadAvatar() ───────────────────────────────────────────
-async function uploadAvatar(input) {
+// ── Avatar upload (preview → save) ───────────────────────────
+function previewAvatar(input) {
   const file = input.files[0];
   if (!file) return;
+  const preview = document.getElementById('avatar-preview');
+  const wrap    = document.getElementById('avatar-save-wrap');
+  preview.src = URL.createObjectURL(file);
+  wrap.style.display = 'flex';
+}
 
-  const label = document.querySelector('.avatar-edit-label');
-  if (label) label.textContent = '⏳';
+function cancelAvatarPreview() {
+  const input   = document.getElementById('avatar-file-input');
+  const preview = document.getElementById('avatar-preview');
+  const wrap    = document.getElementById('avatar-save-wrap');
+  input.value     = '';
+  preview.src     = '';
+  wrap.style.display = 'none';
+}
+
+async function saveAvatar() {
+  const input = document.getElementById('avatar-file-input');
+  const file  = input.files[0];
+  if (!file) return;
+
+  const saveBtn = document.querySelector('#avatar-save-wrap .btn-primary');
+  if (saveBtn) saveBtn.textContent = '⏳ Saving…';
 
   const formData = new FormData();
   formData.append('avatar', file);
@@ -504,14 +523,14 @@ async function uploadAvatar(input) {
       img.src              = data.avatarUrl;
       img.style.display    = '';
       initials.style.display = 'none';
+      cancelAvatarPreview();
     } else {
       alert(data.error || 'Could not upload photo.');
     }
   } catch {
     alert('Cannot connect to server.');
   } finally {
-    if (label) label.textContent = '📷';
-    input.value = '';
+    if (saveBtn) saveBtn.textContent = 'Save Photo';
   }
 }
 

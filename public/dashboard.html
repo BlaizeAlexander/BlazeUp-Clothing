@@ -48,7 +48,12 @@
             <span id="user-avatar-initials"></span>
           </div>
           <label class="avatar-edit-label" for="avatar-file-input" title="Change photo">📷</label>
-          <input type="file" id="avatar-file-input" accept="image/jpeg,image/png" style="display:none" onchange="uploadAvatar(this)" />
+          <input type="file" id="avatar-file-input" accept="image/jpeg,image/png" style="display:none" onchange="previewAvatar(this)" />
+        </div>
+        <div id="avatar-save-wrap" style="display:none;flex-direction:column;align-items:flex-start;gap:6px">
+          <img id="avatar-preview" src="" alt="Preview" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--primary)" />
+          <button class="btn btn-small btn-primary" onclick="saveAvatar()">Save Photo</button>
+          <button class="btn btn-small btn-outline" onclick="cancelAvatarPreview()">Cancel</button>
         </div>
         <div>
           <h1>Welcome back, <span id="user-username">...</span>!</h1>
