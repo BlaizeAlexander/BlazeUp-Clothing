@@ -8,6 +8,19 @@
 // ── Module-level customer cache (avoids JSON-in-onclick) ─────
 let _customers = [];
 
+// ── Image lightbox ────────────────────────────────────────────
+function openImageModal(url) {
+  const lb = document.getElementById('img-lightbox');
+  if (!lb || !url) return;
+  document.getElementById('img-lightbox-img').src = url;
+  lb.classList.add('open');
+}
+function closeImageModal() {
+  const lb = document.getElementById('img-lightbox');
+  if (lb) lb.classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeImageModal(); });
+
 // ── On page load ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAdminAccess();  // redirect away if not admin
@@ -609,7 +622,7 @@ function showCustomerDetail(id) {
     : '<p style="color:var(--text-light);font-size:0.88rem;padding:12px 20px">No orders found for this account.</p>';
 
   const avatarHTML = customer.avatarUrl
-    ? `<img src="${customer.avatarUrl}" alt="Avatar" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block" />`
+    ? `<img src="${customer.avatarUrl}" alt="Avatar" onclick="openImageModal(this.src)" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;cursor:zoom-in" />`
     : `<div style="width:72px;height:72px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:700">${(customer.username||'?')[0].toUpperCase()}</div>`;
 
   document.getElementById('customer-detail-body').innerHTML = `

@@ -626,6 +626,12 @@
     </div>
   </div>
 
+  <!-- Image lightbox -->
+  <div id="img-lightbox" class="img-lightbox" onclick="closeImageModal()">
+    <button class="img-lightbox-close" onclick="event.stopPropagation();closeImageModal()">✕</button>
+    <img id="img-lightbox-img" src="" alt="Profile photo" onclick="event.stopPropagation()" />
+  </div>
+
   <script src="js/admin.js"></script>
 
 </body>

@@ -377,8 +377,10 @@ async function loadDashboard() {
     const avatarImg      = document.getElementById('user-avatar-img');
     const avatarInitials = document.getElementById('user-avatar-initials');
     if (user.avatarUrl) {
-      avatarImg.src          = user.avatarUrl;
+      avatarImg.src           = user.avatarUrl;
       avatarImg.style.display = '';
+      avatarImg.style.cursor  = 'zoom-in';
+      avatarImg.onclick       = () => openImageModal(user.avatarUrl);
       avatarInitials.style.display = 'none';
     } else {
       avatarInitials.textContent   = (user.username || '?')[0].toUpperCase();
@@ -483,6 +485,19 @@ async function updateProfile(event) {
   }
 }
 
+
+// ── Image lightbox ────────────────────────────────────────────
+function openImageModal(url) {
+  const lb = document.getElementById('img-lightbox');
+  if (!lb || !url) return;
+  document.getElementById('img-lightbox-img').src = url;
+  lb.classList.add('open');
+}
+function closeImageModal() {
+  const lb = document.getElementById('img-lightbox');
+  if (lb) lb.classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeImageModal(); });
 
 // ── Avatar upload (preview → save) ───────────────────────────
 function previewAvatar(input) {
