@@ -858,19 +858,21 @@ async function loadFinanceOverview(period) {
   el.innerHTML = `<div class="fin-loading"><div class="fin-spinner"></div><p>Loading dashboard…</p></div>`;
 
   try {
-    const [overviewRes, ordersRes, expensesRes] = await Promise.all([
+    const [overviewRes, ordersRes, expensesRes, receivablesRes] = await Promise.all([
       fetch(`/api/admin/finance/overview?period=${p}`, { credentials: 'include' }),
       fetch('/api/admin/orders',                        { credentials: 'include' }),
-      fetch('/api/admin/expenses',                      { credentials: 'include' })
+      fetch('/api/admin/expenses',                      { credentials: 'include' }),
+      fetch('/api/admin/receivables',                   { credentials: 'include' })
     ]);
 
-    const d        = await overviewRes.json();
-    const orders   = await ordersRes.json();
-    const expenses = await expensesRes.json();
+    const d           = await overviewRes.json();
+    const orders      = await ordersRes.json();
+    const expenses    = await expensesRes.json();
+    const receivables = await receivablesRes.json();
 
     const monthly  = _finCalcMonthly(orders, expenses);
     const insights = _finCalcInsights(d);
-    const recent   = orders.slice(0, 8);
+    const recent   = _finBuildActivity(orders, expenses, receivables);
 
     // sign helper — returns prefix string and whether positive
     const sig = v => ({ pfx: v >= 0 ? '₱' : '−₱', abs: Math.abs(v), pos: v >= 0 });
@@ -937,20 +939,20 @@ async function loadFinanceOverview(period) {
           <div class="fin-activity-wrap">
             <table class="fin-activity-table">
               <thead><tr>
-                <th>Date</th><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th>
+                <th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th>
               </tr></thead>
               <tbody>
-                ${recent.map(o => `
+                ${recent.map(a => `
                   <tr>
-                    <td>${new Date(o.createdAt).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })}</td>
-                    <td class="fin-mono">#${String(o.id).slice(0, 8)}&hellip;</td>
-                    <td>${o.customerName || '—'}</td>
-                    <td class="fin-amt">₱${fmt(o.total)}</td>
-                    <td><span class="fin-status-badge status-${o.status}">${o.status}</span></td>
+                    <td>${new Date(a.date).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })}</td>
+                    <td><span class="fin-type-badge fin-type-${a.type}">${a.type}</span></td>
+                    <td>${a.description}</td>
+                    <td class="fin-amt">₱${fmt(a.amount)}</td>
+                    <td><span class="fin-status-badge status-${a.badge}">${a.badge}</span></td>
                   </tr>`).join('')}
               </tbody>
             </table>
-          </div>` : '<p class="admin-empty" style="padding:20px 0">No orders yet.</p>'}
+          </div>` : '<p class="admin-empty" style="padding:20px 0">No activity yet.</p>'}
         </div>
       </div>
 
@@ -972,6 +974,38 @@ async function loadFinanceOverview(period) {
   } catch {
     el.innerHTML = '<p class="admin-empty">Could not load overview.</p>';
   }
+}
+
+// ── Combined recent activity builder ─────────────────────
+function _finBuildActivity(orders, expenses, receivables) {
+  const entries = [];
+
+  orders.forEach(o => entries.push({
+    date:        o.createdAt,
+    type:        'order',
+    description: o.customerName || 'Guest',
+    amount:      o.total,
+    badge:       o.status
+  }));
+
+  expenses.forEach(e => entries.push({
+    date:        e.createdAt || e.date,
+    type:        'expense',
+    description: e.category + (e.description ? ' — ' + e.description : ''),
+    amount:      e.amount,
+    badge:       'expense'
+  }));
+
+  receivables.forEach(r => entries.push({
+    date:        r.createdAt,
+    type:        'receivable',
+    description: r.customerName + (r.notes ? ' — ' + r.notes : ''),
+    amount:      r.amount,
+    badge:       r.status
+  }));
+
+  entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return entries.slice(0, 10);
 }
 
 // ── Big KPI card builder ──────────────────────────────────
@@ -1071,10 +1105,12 @@ function _finCalcMonthly(orders, expenses) {
 
 // ── Chart.js rendering ────────────────────────────────────
 function _finRenderCharts(d, monthly) {
+  if (typeof Chart === 'undefined') {
+    setTimeout(() => _finRenderCharts(d, monthly), 150);
+    return;
+  }
   Object.values(_finActiveCharts).forEach(c => c && c.destroy && c.destroy());
   _finActiveCharts = {};
-
-  if (typeof Chart === 'undefined') return;
 
   // Line chart — Revenue vs Expenses
   const c1 = document.getElementById('fin-rev-exp-chart');
