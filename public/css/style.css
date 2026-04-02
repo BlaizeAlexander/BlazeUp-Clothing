@@ -1751,6 +1751,14 @@ img {
   display: inline-block;
 }
 
+.cart-stock-notice {
+  background: #fff3cd;
+  color: #856404;
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-bottom: 1px solid #ffe08a;
+}
+
 /* "Bulk price" badge inside cart item */
 .tier-badge {
   background: var(--accent);

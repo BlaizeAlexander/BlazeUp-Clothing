@@ -1033,11 +1033,47 @@ function applyDiscount() {
   updateCartTotals(subtotal);
 }
 
+// ── purgeOutOfStockFromCart() ────────────────────────────────
+// Fetches live stock, silently removes any cart items whose product
+// is now out of stock. Returns array of removed item names.
+async function purgeOutOfStockFromCart() {
+  try {
+    const res = await fetch('/api/products', { credentials: 'include' });
+    if (!res.ok) return [];
+    const products = await res.json();
+    const outOfStock = new Set(products.filter(p => p.stockQuantity === 0).map(p => p.id));
+
+    const cart    = getCart();
+    const removed = cart.filter(item => item.productId && outOfStock.has(item.productId)).map(i => i.name);
+    const updated = cart.filter(item => !item.productId || !outOfStock.has(item.productId));
+
+    if (removed.length) {
+      saveCart(updated);
+      updateCartBadge();
+    }
+    return removed;
+  } catch {
+    return [];
+  }
+}
+
 // ── openCart() ───────────────────────────────────────────────
 async function openCart() {
-  try { renderCart(); } catch(e) { console.error(e); }
   document.getElementById('cart-sidebar').classList.add('open');
   document.getElementById('cart-overlay').classList.add('open');
+
+  const removed = await purgeOutOfStockFromCart();
+  const notice  = document.getElementById('cart-stock-notice');
+  if (notice) {
+    if (removed.length) {
+      notice.textContent   = `Removed out-of-stock item${removed.length > 1 ? 's' : ''}: ${removed.join(', ')}`;
+      notice.style.display = '';
+    } else {
+      notice.style.display = 'none';
+    }
+  }
+
+  try { renderCart(); } catch(e) { console.error(e); }
 
   // Load user points if logged in
   try {
