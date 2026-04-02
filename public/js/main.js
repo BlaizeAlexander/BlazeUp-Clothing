@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateCartBadge();
   setupLightboxInteractions();
   loadShippingFee();
+  loadQuantityDiscounts();
   loadSocialLinks();
 
   if (window.location.pathname.includes('dashboard.html')) {
@@ -906,6 +907,25 @@ async function loadShippingFee() {
   } catch { /* non-critical, default to 0 */ }
 }
 
+// ── Quantity discount tiers state ────────────────────────────
+let _qtyDiscountTiers = [];
+
+async function loadQuantityDiscounts() {
+  try {
+    const res = await fetch('/api/quantity-discounts');
+    if (res.ok) _qtyDiscountTiers = await res.json();
+  } catch { /* non-critical */ }
+}
+
+// Returns the discount percent (0-100) that applies to the given total qty
+function getQtyDiscountPercent(totalQty) {
+  let best = null;
+  for (const tier of _qtyDiscountTiers) {
+    if (totalQty >= tier.minQty && (!best || tier.minQty > best.minQty)) best = tier;
+  }
+  return best ? best.discountPercent : 0;
+}
+
 async function loadSocialLinks() {
   try {
     const res = await fetch('/api/social-links');
@@ -939,6 +959,24 @@ function updateCartTotals(subtotal) {
 
   if (subtotalEl) subtotalEl.textContent = '₱' + subtotal.toFixed(2);
 
+  // Quantity-based auto discount
+  const cart       = getCart();
+  const totalQty   = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+  const qtyPct     = getQtyDiscountPercent(totalQty);
+  const qtyDiscAmt = qtyPct > 0 ? subtotal * (qtyPct / 100) : 0;
+  const qtyLine    = document.getElementById('cart-qty-discount-line');
+  const qtyAmtEl   = document.getElementById('cart-qty-discount-amount');
+  const qtyLabelEl = document.getElementById('cart-qty-discount-label');
+  if (qtyLine && qtyAmtEl) {
+    if (qtyDiscAmt > 0) {
+      if (qtyLabelEl) qtyLabelEl.textContent = `(${qtyPct}% for ${totalQty}+ items)`;
+      qtyAmtEl.textContent  = '-₱' + qtyDiscAmt.toFixed(2);
+      qtyLine.style.display = '';
+    } else {
+      qtyLine.style.display = 'none';
+    }
+  }
+
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
 
@@ -951,7 +989,7 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const pointsAmt = getPointsDiscount(subtotal, discountAmt);
+  const pointsAmt = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
   if (pointsLine && pointsDiscEl) {
     if (pointsAmt > 0) {
       pointsDiscEl.textContent  = '-₱' + pointsAmt.toFixed(2);
@@ -972,7 +1010,7 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const total = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
+  const total = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
   if (totalEl) totalEl.textContent = '₱' + total.toFixed(2);
 }
 
@@ -1134,10 +1172,21 @@ async function openCheckoutModal() {
     `;
   });
 
+  const totalQty    = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+  const qtyPct      = getQtyDiscountPercent(totalQty);
+  const qtyDiscAmt  = qtyPct > 0 ? subtotal * (qtyPct / 100) : 0;
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
-  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
+  const total       = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
 
+  if (qtyDiscAmt > 0) {
+    summaryHTML += `
+      <div class="summary-row" style="color:var(--success)">
+        <span>Qty Discount (${qtyPct}% for ${totalQty} items)</span>
+        <span>-₱${qtyDiscAmt.toFixed(2)}</span>
+      </div>
+    `;
+  }
   if (discountAmt > 0) {
     summaryHTML += `
       <div class="summary-row" style="color:var(--success)">
@@ -1258,10 +1307,12 @@ async function submitOrder(event) {
   }
 
   const subtotal    = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const totalQty    = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+  const qtyDiscAmt  = subtotal * (getQtyDiscountPercent(totalQty) / 100);
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
-  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
+  const total       = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
 
   // Disable button while uploading
   submitBtn.disabled    = true;

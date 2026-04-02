@@ -94,6 +94,37 @@ router.get('/social-links', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/quantity-discounts — public: storefront reads tiers to auto-apply cart discount
+router.get('/quantity-discounts', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM quantity_discounts ORDER BY min_qty ASC');
+    res.json(rows.map(r => ({ id: r.id, minQty: r.min_qty, discountPercent: parseFloat(r.discount_percent) })));
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/quantity-discounts — add a tier
+router.post('/admin/quantity-discounts', requireLogin, requireAdmin, async (req, res, next) => {
+  const { minQty, discountPercent } = req.body;
+  if (!minQty || !discountPercent)
+    return res.status(400).json({ error: 'minQty and discountPercent are required.' });
+  try {
+    const { rows } = await query(
+      'INSERT INTO quantity_discounts (min_qty, discount_percent) VALUES ($1,$2) RETURNING *',
+      [parseInt(minQty, 10), parseFloat(discountPercent)]
+    );
+    res.json({ success: true, tier: { id: rows[0].id, minQty: rows[0].min_qty, discountPercent: parseFloat(rows[0].discount_percent) } });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/admin/quantity-discounts/:id — remove a tier
+router.delete('/admin/quantity-discounts/:id', requireLogin, requireAdmin, async (req, res, next) => {
+  try {
+    const { rowCount } = await query('DELETE FROM quantity_discounts WHERE id = $1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Tier not found.' });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // GET /api/shipping-fee — public: storefront uses this to display and apply shipping cost
 router.get('/shipping-fee', async (req, res, next) => {
   try {
