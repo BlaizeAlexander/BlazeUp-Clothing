@@ -1233,6 +1233,24 @@ async function openCheckoutModal() {
     }
   } catch { /* no QR configured */ }
 
+  // Reset the screenshot upload field and preview
+  const fileInput = document.getElementById('order-screenshot');
+  fileInput.value = '';
+  const preview = document.getElementById('screenshot-preview');
+  preview.src           = '';
+  preview.style.display = 'none';
+  document.getElementById('file-upload-text').style.display = '';
+
+  // Reset the submit button in case it was left disabled from a previous order
+  const submitBtn = document.getElementById('confirm-order-btn');
+  submitBtn.disabled    = false;
+  submitBtn.textContent = 'Confirm Order';
+
+  // Clear any lingering error message
+  const errorBox = document.getElementById('checkout-error');
+  errorBox.textContent   = '';
+  errorBox.style.display = 'none';
+
   // Make sure the form is visible and confirmation is hidden
   document.getElementById('checkout-form').style.display = '';
   document.getElementById('order-confirmation').style.display = 'none';
