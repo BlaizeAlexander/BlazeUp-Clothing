@@ -1785,7 +1785,6 @@ async function loadSettings() {
   try {
     const res      = await fetch('/api/admin/settings', { credentials: 'include' });
     const settings = await res.json();
-    loadQtyDiscounts();
 
     document.getElementById('setting-points-enabled').checked  = !!settings.pointsSystemEnabled;
     document.getElementById('setting-purchase-rate').value     = settings.purchasePointsRate ?? 1;
@@ -1902,77 +1901,6 @@ async function uploadQRCode(event) {
   } catch (err) {
     alert('Upload error: ' + (err.message || 'Cannot reach server.'));
   }
-}
-
-
-// ════════════════════════════════════════════════════════════
-// QUANTITY DISCOUNTS
-// ════════════════════════════════════════════════════════════
-
-async function loadQtyDiscounts() {
-  const el = document.getElementById('qty-discount-list');
-  if (!el) return;
-  try {
-    const res   = await fetch('/api/quantity-discounts');
-    const tiers = await res.json();
-    if (!tiers.length) {
-      el.innerHTML = '<p style="color:var(--text-light);font-size:0.9rem;margin:0">No tiers configured yet.</p>';
-      return;
-    }
-    el.innerHTML = `
-      <table class="fin-table" style="margin-bottom:0">
-        <thead><tr><th>Min. Items</th><th>Discount</th><th></th></tr></thead>
-        <tbody>
-          ${tiers.map(t => `
-            <tr>
-              <td>${t.minQty}+ items</td>
-              <td>${t.discountPercent}% off</td>
-              <td><button class="btn btn-outline btn-small" onclick="deleteQtyDiscount(${t.id})">Delete</button></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-  } catch {
-    el.innerHTML = '<p style="color:var(--text-light)">Could not load tiers.</p>';
-  }
-}
-
-async function addQtyDiscount(event) {
-  event.preventDefault();
-  const minQty = parseInt(document.getElementById('qty-discount-min').value);
-  const pct    = parseFloat(document.getElementById('qty-discount-pct').value);
-  const msg    = document.getElementById('qty-discount-msg');
-  msg.style.display = 'none';
-
-  try {
-    const res = await fetch('/api/admin/quantity-discounts', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ minQty, discountPercent: pct })
-    });
-    if (res.ok) {
-      msg.style.display = '';
-      setTimeout(() => msg.style.display = 'none', 3000);
-      document.getElementById('qty-discount-min').value = '';
-      document.getElementById('qty-discount-pct').value = '';
-      loadQtyDiscounts();
-    } else {
-      const d = await res.json();
-      alert(d.error || 'Could not add tier.');
-    }
-  } catch { alert('Could not add tier.'); }
-}
-
-async function deleteQtyDiscount(id) {
-  if (!confirm('Delete this discount tier?')) return;
-  try {
-    const res = await fetch(`/api/admin/quantity-discounts/${id}`, {
-      method: 'DELETE', credentials: 'include'
-    });
-    if (res.ok) loadQtyDiscounts();
-    else alert('Could not delete tier.');
-  } catch { alert('Could not delete tier.'); }
 }
 
 

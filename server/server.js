@@ -103,15 +103,6 @@ async function runMigrations() {
   await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_url TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS telegram_url  TEXT NOT NULL DEFAULT ''`);
   console.log('[migrate] settings.social_urls OK');
-  await query(`
-    CREATE TABLE IF NOT EXISTS quantity_discounts (
-      id               SERIAL        PRIMARY KEY,
-      min_qty          INTEGER       NOT NULL,
-      discount_percent NUMERIC(5,2)  NOT NULL,
-      created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-    )
-  `);
-  console.log('[migrate] quantity_discounts OK');
 }
 
 function startServer(port) {

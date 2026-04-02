@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateCartBadge();
   setupLightboxInteractions();
   loadShippingFee();
-  loadQuantityDiscounts();
   loadSocialLinks();
 
   if (window.location.pathname.includes('dashboard.html')) {
@@ -141,7 +140,13 @@ async function loadProducts() {
           </div>`
         : '';
 
-      const tierNote = tiers.length > 0 ? `<span class="tier-note">Bulk pricing available</span>` : '';
+      const tierNote = tiers.length > 0
+        ? `<div class="tier-note">${
+            [...tiers].sort((a,b) => a.minQty - b.minQty)
+              .map(t => `${t.minQty} pc${t.minQty > 1 ? 's' : ''}: ₱${parseFloat(t.price).toLocaleString('en-PH', {minimumFractionDigits:2})}`)
+              .join(' &nbsp;·&nbsp; ')
+          }</div>`
+        : '';
 
       return `
         <div class="product-card">
@@ -159,10 +164,11 @@ async function loadProducts() {
                 ? `<span class="out-of-stock-badge">Out of Stock</span>`
                 : `<div class="card-qty-controls">
                 <button class="card-qty-btn" type="button"
-                  onclick="this.nextElementSibling.value = Math.max(1, parseInt(this.nextElementSibling.value) - 1)">−</button>
-                <input type="number" class="card-qty-input" value="1" min="1" max="99" />
+                  onclick="const i=this.nextElementSibling; i.value=Math.max(1,parseInt(i.value)-1); updateCardPrice('${p.id}',i)">−</button>
+                <input type="number" class="card-qty-input" value="1" min="1" max="99"
+                  oninput="updateCardPrice('${p.id}', this)" />
                 <button class="card-qty-btn" type="button"
-                  onclick="this.previousElementSibling.value = Math.min(99, parseInt(this.previousElementSibling.value) + 1)">+</button>
+                  onclick="const i=this.previousElementSibling; i.value=Math.min(99,parseInt(i.value)+1); updateCardPrice('${p.id}',i)">+</button>
               </div>
               <button
                 class="btn btn-small"
@@ -674,6 +680,24 @@ function getTierPrice(tiers, qty) {
   return null;
 }
 
+// ── updateCardPrice() ────────────────────────────────────────
+// Called oninput on the qty field. Updates the displayed price
+// to the correct tier price for the entered quantity.
+function updateCardPrice(pid, inputEl) {
+  const qty    = Math.max(1, parseInt(inputEl.value) || 1);
+  const card   = inputEl.closest('.product-card');
+  const addBtn = card ? card.querySelector('[data-pid]') : null;
+  if (!addBtn) return;
+
+  const basePrice = parseFloat(addBtn.dataset.price);
+  const tiers     = addBtn.dataset.tiers ? JSON.parse(addBtn.dataset.tiers) : [];
+  const tierPrice = getTierPrice(tiers, qty);
+  const effPrice  = tierPrice !== null ? tierPrice : basePrice;
+
+  const priceEl = document.getElementById(`price-${pid}`);
+  if (priceEl) priceEl.textContent = '₱' + effPrice.toFixed(2);
+}
+
 // ── selectVariant() ──────────────────────────────────────────
 // Called when a size/variant button is clicked on a product card.
 function selectVariant(clickedBtn, productId) {
@@ -694,6 +718,10 @@ function selectVariant(clickedBtn, productId) {
   if (addBtn) {
     addBtn.dataset.price       = clickedBtn.dataset.price;
     addBtn.dataset.variantName = clickedBtn.dataset.name;
+    // Re-apply tier pricing for current qty after variant change
+    const card  = addBtn.closest('.product-card');
+    const input = card ? card.querySelector('.card-qty-input') : null;
+    if (input) updateCardPrice(productId, input);
   }
 }
 
@@ -907,24 +935,6 @@ async function loadShippingFee() {
   } catch { /* non-critical, default to 0 */ }
 }
 
-// ── Quantity discount tiers state ────────────────────────────
-let _qtyDiscountTiers = [];
-
-async function loadQuantityDiscounts() {
-  try {
-    const res = await fetch('/api/quantity-discounts');
-    if (res.ok) _qtyDiscountTiers = await res.json();
-  } catch { /* non-critical */ }
-}
-
-// Returns the discount percent (0-100) that applies to the given total qty
-function getQtyDiscountPercent(totalQty) {
-  let best = null;
-  for (const tier of _qtyDiscountTiers) {
-    if (totalQty >= tier.minQty && (!best || tier.minQty > best.minQty)) best = tier;
-  }
-  return best ? best.discountPercent : 0;
-}
 
 async function loadSocialLinks() {
   try {
@@ -959,24 +969,6 @@ function updateCartTotals(subtotal) {
 
   if (subtotalEl) subtotalEl.textContent = '₱' + subtotal.toFixed(2);
 
-  // Quantity-based auto discount
-  const cart       = getCart();
-  const totalQty   = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
-  const qtyPct     = getQtyDiscountPercent(totalQty);
-  const qtyDiscAmt = qtyPct > 0 ? subtotal * (qtyPct / 100) : 0;
-  const qtyLine    = document.getElementById('cart-qty-discount-line');
-  const qtyAmtEl   = document.getElementById('cart-qty-discount-amount');
-  const qtyLabelEl = document.getElementById('cart-qty-discount-label');
-  if (qtyLine && qtyAmtEl) {
-    if (qtyDiscAmt > 0) {
-      if (qtyLabelEl) qtyLabelEl.textContent = `(${qtyPct}% for ${totalQty}+ items)`;
-      qtyAmtEl.textContent  = '-₱' + qtyDiscAmt.toFixed(2);
-      qtyLine.style.display = '';
-    } else {
-      qtyLine.style.display = 'none';
-    }
-  }
-
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
 
@@ -989,7 +981,7 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const pointsAmt = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
+  const pointsAmt = getPointsDiscount(subtotal, discountAmt);
   if (pointsLine && pointsDiscEl) {
     if (pointsAmt > 0) {
       pointsDiscEl.textContent  = '-₱' + pointsAmt.toFixed(2);
@@ -1010,7 +1002,7 @@ function updateCartTotals(subtotal) {
     }
   }
 
-  const total = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
+  const total = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
   if (totalEl) totalEl.textContent = '₱' + total.toFixed(2);
 }
 
@@ -1172,21 +1164,10 @@ async function openCheckoutModal() {
     `;
   });
 
-  const totalQty    = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
-  const qtyPct      = getQtyDiscountPercent(totalQty);
-  const qtyDiscAmt  = qtyPct > 0 ? subtotal * (qtyPct / 100) : 0;
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const pointsAmt   = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
-  const total       = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
 
-  if (qtyDiscAmt > 0) {
-    summaryHTML += `
-      <div class="summary-row" style="color:var(--success)">
-        <span>Qty Discount (${qtyPct}% for ${totalQty} items)</span>
-        <span>-₱${qtyDiscAmt.toFixed(2)}</span>
-      </div>
-    `;
-  }
   if (discountAmt > 0) {
     summaryHTML += `
       <div class="summary-row" style="color:var(--success)">
@@ -1307,12 +1288,10 @@ async function submitOrder(event) {
   }
 
   const subtotal    = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalQty    = cart.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
-  const qtyDiscAmt  = subtotal * (getQtyDiscountPercent(totalQty) / 100);
   const discount    = getSelectedDiscount();
   const discountAmt = calcDiscountAmount(subtotal, discount);
-  const pointsAmt   = getPointsDiscount(subtotal, discountAmt + qtyDiscAmt);
-  const total       = Math.max(0, subtotal - qtyDiscAmt - discountAmt - pointsAmt) + _shippingFee;
+  const pointsAmt   = getPointsDiscount(subtotal, discountAmt);
+  const total       = Math.max(0, subtotal - discountAmt - pointsAmt) + _shippingFee;
 
   // Disable button while uploading
   submitBtn.disabled    = true;
