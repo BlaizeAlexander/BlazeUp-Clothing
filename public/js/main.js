@@ -154,7 +154,9 @@ async function loadProducts() {
               ${tierNote}
             </div>
             <div class="product-add-row">
-              <div class="card-qty-controls">
+              ${p.stockQuantity === 0
+                ? `<span class="out-of-stock-badge">Out of Stock</span>`
+                : `<div class="card-qty-controls">
                 <button class="card-qty-btn" type="button"
                   onclick="this.nextElementSibling.value = Math.max(1, parseInt(this.nextElementSibling.value) - 1)">−</button>
                 <input type="number" class="card-qty-input" value="1" min="1" max="99" />
@@ -169,7 +171,8 @@ async function loadProducts() {
                 data-tiers="${tiersAttr}"
                 data-pid="${p.id}"
                 onclick="addToCartFromCard(this)"
-              >Add to Cart</button>
+              >Add to Cart</button>`
+              }
             </div>
           </div>
         </div>

@@ -110,6 +110,19 @@ router.post('/orders', optionalLogin,
       `, [userId, customerName, contact, address, parseFloat(total), pts, paymentScreenshot]);
       const order = orderRes.rows[0];
 
+      // Check stock before inserting anything
+      for (const item of parsedItems) {
+        if (!item.productId) continue;
+        const { rows: stockRows } = await client.query(
+          'SELECT name, stock_quantity FROM products WHERE id = $1 FOR UPDATE',
+          [item.productId]
+        );
+        if (stockRows.length && stockRows[0].stock_quantity === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `"${stockRows[0].name}" is out of stock.` });
+        }
+      }
+
       // Insert order items — snapshot cost at this moment
       const insertedItems = [];
       for (const item of parsedItems) {

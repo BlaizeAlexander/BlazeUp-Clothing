@@ -1741,6 +1741,16 @@ img {
   margin-top: 2px;
 }
 
+.out-of-stock-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: #888;
+  padding: 5px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
 /* "Bulk price" badge inside cart item */
 .tier-badge {
   background: var(--accent);
