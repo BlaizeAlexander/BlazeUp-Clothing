@@ -100,113 +100,48 @@ app.use((err, req, res, next) => {
 });
 
 // ── Startup migrations ───────────────────────────────────────
-// Safe to re-run on every deploy — IF NOT EXISTS guards each step.
+// Safe to re-run on every deploy — all SQL files use IF NOT EXISTS / ON CONFLICT guards.
 async function runMigrations() {
-  const { query } = require('./db');
-  // ── v1 migrations ────────────────────────────────────────────
-  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'`);
-  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT ''`);
-  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url  TEXT NOT NULL DEFAULT ''`);
-  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_url TEXT NOT NULL DEFAULT ''`);
-  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS telegram_url  TEXT NOT NULL DEFAULT ''`);
-  // ── v2 accounting migrations ──────────────────────────────────
-  // Create new tables if they don't exist yet (safe to re-run)
-  await query(`CREATE TABLE IF NOT EXISTS accounts (
-    id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-    code           TEXT    NOT NULL UNIQUE,
-    name           TEXT    NOT NULL,
-    type           TEXT    NOT NULL CHECK (type IN ('asset','liability','equity','revenue','expense')),
-    normal_balance TEXT    NOT NULL CHECK (normal_balance IN ('debit','credit')),
-    is_system      BOOLEAN NOT NULL DEFAULT false,
-    parent_code    TEXT,
-    is_active      BOOLEAN NOT NULL DEFAULT true,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query(`INSERT INTO accounts (code, name, type, normal_balance, is_system) VALUES
-    ('1000','Cash on Hand',           'asset',     'debit',  true),
-    ('1010','GCash / Bank',           'asset',     'debit',  true),
-    ('1100','Accounts Receivable',    'asset',     'debit',  true),
-    ('1200','Merchandise Inventory',  'asset',     'debit',  true),
-    ('2000','Accounts Payable',       'liability', 'credit', true),
-    ('2100','Accrued Expenses',       'liability', 'credit', true),
-    ('3000','Owner''s Capital',       'equity',    'credit', true),
-    ('3100','Owner''s Drawings',      'equity',    'debit',  true),
-    ('4000','Sales Revenue',          'revenue',   'credit', true),
-    ('4010','Sales Discounts',        'revenue',   'debit',  true),
-    ('4020','Sales Returns',          'revenue',   'debit',  true),
-    ('5000','Cost of Goods Sold',     'expense',   'debit',  true),
-    ('6000','Rent Expense',           'expense',   'debit',  true),
-    ('6010','Packaging Expense',      'expense',   'debit',  true),
-    ('6020','Delivery Expense',       'expense',   'debit',  true),
-    ('6030','Advertising & Marketing','expense',   'debit',  true),
-    ('6040','Utilities Expense',      'expense',   'debit',  true),
-    ('6050','Salaries Expense',       'expense',   'debit',  true),
-    ('6090','Miscellaneous Expense',  'expense',   'debit',  true)
-  ON CONFLICT (code) DO NOTHING`);
-  await query(`CREATE TABLE IF NOT EXISTS journal_entries (
-    id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-    date        DATE    NOT NULL DEFAULT CURRENT_DATE,
-    description TEXT    NOT NULL,
-    ref_type    TEXT,
-    ref_id      UUID,
-    posted_by   UUID    REFERENCES users(id) ON DELETE SET NULL,
-    is_voided   BOOLEAN NOT NULL DEFAULT false,
-    void_reason TEXT,
-    voided_at   TIMESTAMPTZ,
-    voided_by   UUID    REFERENCES users(id) ON DELETE SET NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query(`CREATE TABLE IF NOT EXISTS journal_entry_lines (
-    id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    journal_entry_id UUID          NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
-    account_id       UUID          NOT NULL REFERENCES accounts(id),
-    debit            NUMERIC(15,2) NOT NULL DEFAULT 0 CHECK (debit  >= 0),
-    credit           NUMERIC(15,2) NOT NULL DEFAULT 0 CHECK (credit >= 0),
-    description      TEXT          NOT NULL DEFAULT '',
-    created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-  )`);
-  await query(`CREATE TABLE IF NOT EXISTS product_variants (
-    id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id        UUID          NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    sku               TEXT          NOT NULL DEFAULT '',
-    size              TEXT          NOT NULL DEFAULT '',
-    color             TEXT          NOT NULL DEFAULT '',
-    selling_price     NUMERIC(12,2) NOT NULL,
-    cost_price        NUMERIC(12,2) NOT NULL DEFAULT 0,
-    weighted_avg_cost NUMERIC(12,4) NOT NULL DEFAULT 0,
-    stock_qty         INTEGER       NOT NULL DEFAULT 0,
-    reorder_level     INTEGER       NOT NULL DEFAULT 5,
-    is_active         BOOLEAN       NOT NULL DEFAULT true,
-    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-  )`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_paid     NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_due     NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status  TEXT          NOT NULL DEFAULT 'unpaid'`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes           TEXT          NOT NULL DEFAULT ''`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_voided       BOOLEAN       NOT NULL DEFAULT false`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS void_reason     TEXT`);
-  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS posted_at       TIMESTAMPTZ`);
-  await query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id      UUID`);
-  await query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS line_total      NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS line_cogs       NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE expenses    ADD COLUMN IF NOT EXISTS payment_status  TEXT NOT NULL DEFAULT 'paid'`);
-  await query(`ALTER TABLE expenses    ADD COLUMN IF NOT EXISTS payment_method  TEXT NOT NULL DEFAULT 'cash'`);
-  await query(`ALTER TABLE expenses    ADD COLUMN IF NOT EXISTS account_id      UUID`);
-  await query(`ALTER TABLE expenses    ADD COLUMN IF NOT EXISTS is_voided       BOOLEAN NOT NULL DEFAULT false`);
-  await query(`ALTER TABLE expenses    ADD COLUMN IF NOT EXISTS void_reason     TEXT`);
-  await query(`ALTER TABLE receivables ADD COLUMN IF NOT EXISTS order_id        UUID`);
-  await query(`ALTER TABLE receivables ADD COLUMN IF NOT EXISTS original_amount NUMERIC(12,2)`);
-  await query(`ALTER TABLE receivables ADD COLUMN IF NOT EXISTS amount_paid     NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE receivables ADD COLUMN IF NOT EXISTS balance_due     NUMERIC(12,2)`);
-  await query(`ALTER TABLE payables    ADD COLUMN IF NOT EXISTS purchase_id     UUID`);
-  await query(`ALTER TABLE payables    ADD COLUMN IF NOT EXISTS original_amount NUMERIC(12,2)`);
-  await query(`ALTER TABLE payables    ADD COLUMN IF NOT EXISTS amount_paid     NUMERIC(12,2) NOT NULL DEFAULT 0`);
-  await query(`ALTER TABLE payables    ADD COLUMN IF NOT EXISTS balance_due     NUMERIC(12,2)`);
-  console.log('[migrate] v2 column guards OK');
+  const fs           = require('fs');
+  const { query, getClient } = require('./db');
+
+  // ── v1 inline guards ─────────────────────────────────────────
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS shipping_fee    NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE users    ADD COLUMN IF NOT EXISTS status          TEXT NOT NULL DEFAULT 'approved'`);
+  await query(`ALTER TABLE users    ADD COLUMN IF NOT EXISTS avatar_url      TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url    TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_url   TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS telegram_url    TEXT NOT NULL DEFAULT ''`);
+  console.log('[migrate] v1 OK');
+
+  // ── v2: run migrate_v2.sql (every statement is idempotent) ───
+  const sqlPath = path.join(__dirname, '../db/migrate_v2.sql');
+  if (fs.existsSync(sqlPath)) {
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    // Strip single-line comments, split on semicolons, skip BEGIN/COMMIT
+    const statements = sql
+      .split('\n')
+      .map(line => line.replace(/--.*$/, ''))   // strip inline comments
+      .join('\n')
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !/^(BEGIN|COMMIT)$/i.test(s));
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      for (const stmt of statements) {
+        await client.query(stmt);
+      }
+      await client.query('COMMIT');
+      console.log(`[migrate] v2 OK (${statements.length} statements)`);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 function startServer(port) {
