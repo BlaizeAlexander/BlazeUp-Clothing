@@ -111,7 +111,7 @@ CREATE INDEX IF NOT EXISTS im_variant_idx ON inventory_movements (variant_id);
 -- ── 5. ORDERS — new columns ───────────────────────────────────
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
--- shipping_fee already exists from prior migration
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_fee    NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_paid     NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_due     NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status  TEXT          NOT NULL DEFAULT 'unpaid';
