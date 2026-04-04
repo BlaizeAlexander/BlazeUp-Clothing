@@ -497,6 +497,66 @@ async function updateProfile(event) {
 }
 
 
+// ── Change email / password ───────────────────────────────────
+function toggleCredentialsEdit() {
+  const form = document.getElementById('credentials-form');
+  const btn  = document.getElementById('edit-credentials-btn');
+  const open = form.style.display !== 'none';
+  if (open) {
+    form.style.display = 'none';
+    btn.textContent    = '🔒 Change Email / Password';
+    form.reset();
+    document.getElementById('credentials-success').style.display = 'none';
+    document.getElementById('credentials-error').style.display   = 'none';
+  } else {
+    form.style.display = '';
+    btn.textContent    = '✕ Cancel';
+  }
+}
+
+async function updateCredentials(event) {
+  event.preventDefault();
+
+  const currentPassword = document.getElementById('cred-current-password').value;
+  const newEmail        = document.getElementById('cred-new-email').value.trim();
+  const newPassword     = document.getElementById('cred-new-password').value;
+  const successBox      = document.getElementById('credentials-success');
+  const errorBox        = document.getElementById('credentials-error');
+  const saveBtn         = document.getElementById('credentials-save-btn');
+
+  successBox.style.display = 'none';
+  errorBox.style.display   = 'none';
+  saveBtn.disabled         = true;
+  saveBtn.textContent      = 'Saving...';
+
+  try {
+    const res  = await fetch('/api/profile/credentials', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ currentPassword, newEmail: newEmail || undefined, newPassword: newPassword || undefined })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      if (newEmail) document.getElementById('info-email').textContent = newEmail;
+      successBox.style.display = '';
+      document.getElementById('cred-current-password').value = '';
+      document.getElementById('cred-new-email').value        = '';
+      document.getElementById('cred-new-password').value     = '';
+    } else {
+      errorBox.textContent   = data.error || 'Could not update. Please try again.';
+      errorBox.style.display = '';
+    }
+  } catch {
+    errorBox.textContent   = 'Cannot connect to server.';
+    errorBox.style.display = '';
+  } finally {
+    saveBtn.disabled    = false;
+    saveBtn.textContent = 'Save Changes';
+  }
+}
+
 // ── Image lightbox ────────────────────────────────────────────
 function openImageModal(url) {
   const lb = document.getElementById('img-lightbox');

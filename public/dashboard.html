@@ -152,6 +152,41 @@
         </form>
       </section>
 
+      <!-- ── Change Email / Password ─────────────── -->
+      <section class="dashboard-section">
+        <div class="section-header-row">
+          <h2>Security</h2>
+          <button class="btn btn-small" id="edit-credentials-btn" onclick="toggleCredentialsEdit()">
+            🔒 Change Email / Password
+          </button>
+        </div>
+
+        <form id="credentials-form" onsubmit="updateCredentials(event)" style="display:none;margin-top:16px">
+          <div class="form-group">
+            <label for="cred-current-password">Current Password</label>
+            <input type="password" id="cred-current-password" placeholder="Enter your current password" required />
+          </div>
+          <div class="form-group">
+            <label for="cred-new-email">New Email <span style="color:var(--text-light);font-weight:400">(leave blank to keep current)</span></label>
+            <input type="email" id="cred-new-email" placeholder="new@example.com" />
+          </div>
+          <div class="form-group">
+            <label for="cred-new-password">New Password <span style="color:var(--text-light);font-weight:400">(leave blank to keep current)</span></label>
+            <input type="password" id="cred-new-password" placeholder="At least 8 characters" />
+          </div>
+
+          <div id="credentials-success" class="success-box" style="display:none">
+            Updated successfully!
+          </div>
+          <div id="credentials-error" class="error-box" style="display:none"></div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary" id="credentials-save-btn">Save Changes</button>
+            <button type="button" class="btn btn-outline" onclick="toggleCredentialsEdit()">Cancel</button>
+          </div>
+        </form>
+      </section>
+
       <!-- ── Referral Share ────────────────────────── -->
       <section class="dashboard-section">
         <h2>Share Your Referral Link</h2>

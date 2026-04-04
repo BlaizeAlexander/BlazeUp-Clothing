@@ -3,6 +3,8 @@
 // ============================================================
 
 const express = require('express');
+const bcrypt  = require('bcryptjs');
+const { body, validationResult } = require('express-validator');
 const { query } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware/auth');
 const { uploadAvatar, handleUploadError, uploadToSupabase } = require('../middleware/upload');
@@ -63,6 +65,48 @@ router.post('/profile/avatar', requireLogin,
     } catch (err) { next(err); }
   }
 );
+
+// PUT /api/profile/credentials — change email and/or password
+const credentialRules = [
+  body('currentPassword').notEmpty().withMessage('Current password is required.'),
+  body('newEmail').optional({ checkFalsy: true }).isEmail().normalizeEmail().withMessage('A valid email is required.'),
+  body('newPassword').optional({ checkFalsy: true }).isLength({ min: 8 }).withMessage('New password must be at least 8 characters.')
+];
+
+router.put('/profile/credentials', requireLogin, credentialRules, async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+
+  const { currentPassword, newEmail, newPassword } = req.body;
+  if (!newEmail && !newPassword) {
+    return res.status(400).json({ error: 'Provide a new email or new password.' });
+  }
+
+  try {
+    const { rows } = await query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found.' });
+    const user = rows[0];
+
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
+
+    if (newEmail) {
+      const taken = await query(
+        'SELECT id FROM users WHERE lower(email) = lower($1) AND id != $2',
+        [newEmail, req.user.id]
+      );
+      if (taken.rows.length) return res.status(400).json({ error: 'Email already in use.' });
+      await query('UPDATE users SET email = $1 WHERE id = $2', [newEmail.toLowerCase(), req.user.id]);
+    }
+
+    if (newPassword) {
+      const hash = await bcrypt.hash(newPassword, 12);
+      await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
 
 // DELETE /api/admin/customers/:id — admin removes a customer account
 router.delete('/admin/customers/:id', requireLogin, requireAdmin, async (req, res, next) => {
