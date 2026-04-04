@@ -875,10 +875,23 @@ async function loadFinanceOverview(period) {
       fetch('/api/admin/receivables',                   { credentials: 'include' })
     ]);
 
+    if (!overviewRes.ok) {
+      const errText = await overviewRes.text();
+      console.error('[finance overview] API error', overviewRes.status, errText);
+      el.innerHTML = `<p class="admin-empty" style="color:red">Finance API error (${overviewRes.status}): ${errText.slice(0,200)}</p>`;
+      return;
+    }
+
     const d           = await overviewRes.json();
-    const orders      = await ordersRes.json();
-    const expenses    = await expensesRes.json();
-    const receivables = await receivablesRes.json();
+    const orders      = ordersRes.ok      ? await ordersRes.json()      : [];
+    const expenses    = expensesRes.ok    ? await expensesRes.json()    : [];
+    const receivables = receivablesRes.ok ? await receivablesRes.json() : [];
+
+    if (d.error) {
+      console.error('[finance overview] response error:', d.error);
+      el.innerHTML = `<p class="admin-empty" style="color:red">Finance error: ${d.error}</p>`;
+      return;
+    }
 
     const monthly  = _finCalcMonthly(orders, expenses);
     const insights = _finCalcInsights(d);
@@ -981,8 +994,9 @@ async function loadFinanceOverview(period) {
       _finAnimateCounters(el);
     });
 
-  } catch {
-    el.innerHTML = '<p class="admin-empty">Could not load overview.</p>';
+  } catch (err) {
+    console.error('[finance overview] exception:', err);
+    el.innerHTML = `<p class="admin-empty" style="color:red">Could not load overview: ${err.message}</p>`;
   }
 }
 
