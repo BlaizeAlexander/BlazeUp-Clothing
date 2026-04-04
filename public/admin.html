@@ -112,6 +112,9 @@
         <button class="fin-tab" id="fin-tab-receivables" onclick="switchFinTab('receivables')">🧾 Receivables</button>
         <button class="fin-tab" id="fin-tab-payables"   onclick="switchFinTab('payables')">📤 Payables</button>
         <button class="fin-tab" id="fin-tab-expenses"   onclick="switchFinTab('expenses')">💸 Expenses</button>
+        <button class="fin-tab" id="fin-tab-purchases"  onclick="switchFinTab('purchases')">🛒 Purchases</button>
+        <button class="fin-tab" id="fin-tab-reports"    onclick="switchFinTab('reports')">📊 Reports</button>
+        <button class="fin-tab" id="fin-tab-ledger"     onclick="switchFinTab('ledger')">📒 Ledger</button>
       </div>
 
       <!-- ── Finance: Overview ──────────────────── -->
@@ -217,6 +220,50 @@
         <div id="fin-expenses-content">
           <p class="admin-loading">Loading expenses...</p>
         </div>
+      </div>
+
+      <!-- ── Finance: Purchases ──────────────────── -->
+      <div id="fin-panel-purchases" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Purchases</h2>
+          <button class="btn btn-primary" onclick="openPurchaseModal()">+ New Purchase</button>
+        </div>
+        <div id="fin-purchases-content"><p class="admin-loading">Loading purchases...</p></div>
+      </div>
+
+      <!-- ── Finance: Reports ──────────────────── -->
+      <div id="fin-panel-reports" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Reports</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="report-period" onchange="loadCurrentReport()" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:0.88rem;background:#fff">
+              <option value="thisMonth">This Month</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="thisYear">This Year</option>
+              <option value="allTime">All Time</option>
+            </select>
+            <button class="btn btn-outline" onclick="loadCurrentReport()">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="fin-filter-bar" style="flex-wrap:wrap;gap:6px">
+          <button class="btn btn-outline btn-small report-btn active" id="report-btn-pnl"          onclick="switchReport('pnl')">P&amp;L Statement</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-balance-sheet" onclick="switchReport('balance-sheet')">Balance Sheet</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-cash-flow"     onclick="switchReport('cash-flow')">Cash Flow</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-sales"         onclick="switchReport('sales')">Sales Report</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-rec-aging"     onclick="switchReport('rec-aging')">AR Aging</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-pay-aging"     onclick="switchReport('pay-aging')">AP Aging</button>
+          <button class="btn btn-outline btn-small report-btn"        id="report-btn-inventory"     onclick="switchReport('inventory')">Inventory</button>
+        </div>
+        <div id="fin-reports-content"><p class="admin-loading">Loading report...</p></div>
+      </div>
+
+      <!-- ── Finance: Ledger ───────────────────── -->
+      <div id="fin-panel-ledger" style="display:none">
+        <div class="admin-panel-header">
+          <h2>Journal Ledger</h2>
+          <button class="btn btn-outline" onclick="loadFinanceLedger()">↻ Refresh</button>
+        </div>
+        <div id="fin-ledger-content"><p class="admin-loading">Loading entries...</p></div>
       </div>
 
     </div><!-- /panel-finance -->
@@ -611,6 +658,109 @@
       <div id="inventory-form-error" class="error-box" style="display:none"></div>
       <button type="submit" class="btn btn-primary btn-full">Save Changes</button>
       <button type="button" class="btn btn-outline btn-full" onclick="closeInventoryModal()">Cancel</button>
+    </form>
+    </div>
+  </div>
+
+  <!-- Purchase Modal -->
+  <div class="modal-overlay" id="purchase-modal-overlay" onclick="closePurchaseModal()"></div>
+  <div class="checkout-modal" id="purchase-modal" style="max-width:640px">
+    <div class="modal-header">
+      <h2>New Purchase</h2>
+      <button class="cart-close-btn" onclick="closePurchaseModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="purchase-form" onsubmit="savePurchase(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="modal-form-group">
+          <label>Supplier Name *</label>
+          <input type="text" id="pur-supplier" placeholder="e.g. ABC Textiles" required />
+        </div>
+        <div class="modal-form-group">
+          <label>Reference / Invoice #</label>
+          <input type="text" id="pur-ref" placeholder="Optional" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="modal-form-group">
+          <label>Date *</label>
+          <input type="date" id="pur-date" required />
+        </div>
+        <div class="modal-form-group">
+          <label>Amount Paid (₱)</label>
+          <input type="number" id="pur-amount-paid" min="0" step="0.01" placeholder="0.00" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="modal-form-group">
+          <label>Payment Method</label>
+          <select id="pur-method">
+            <option value="cash">Cash</option>
+            <option value="gcash">GCash</option>
+            <option value="bank">Bank</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="modal-form-group">
+          <label>Notes</label>
+          <input type="text" id="pur-notes" placeholder="Optional" />
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-weight:600">Items *</label>
+          <button type="button" class="btn btn-outline btn-small" onclick="addPurchaseItem()">+ Add Item</button>
+        </div>
+        <div id="purchase-items-list">
+          <!-- rows added by JS -->
+        </div>
+        <div style="text-align:right;margin-top:8px;font-weight:600;font-size:0.95rem">
+          Total: ₱<span id="pur-total-display">0.00</span>
+        </div>
+      </div>
+      <div id="purchase-form-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full" id="purchase-save-btn">Record Purchase</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closePurchaseModal()">Cancel</button>
+    </form>
+    </div>
+  </div>
+
+  <!-- Supplier Payment Modal -->
+  <div class="modal-overlay" id="sup-pay-modal-overlay" onclick="closeSupplierPaymentModal()"></div>
+  <div class="checkout-modal" id="sup-pay-modal">
+    <div class="modal-header">
+      <h2>Record Payment</h2>
+      <button class="cart-close-btn" onclick="closeSupplierPaymentModal()">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+    <form id="sup-pay-form" onsubmit="saveSupplierPayment(event)" style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="sup-pay-purchase-id" />
+      <div class="modal-form-group">
+        <label>Amount (₱) — Balance Due: ₱<span id="sup-pay-balance"></span></label>
+        <input type="number" id="sup-pay-amount" min="0.01" step="0.01" required />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="modal-form-group">
+          <label>Date</label>
+          <input type="date" id="sup-pay-date" />
+        </div>
+        <div class="modal-form-group">
+          <label>Method</label>
+          <select id="sup-pay-method">
+            <option value="cash">Cash</option>
+            <option value="gcash">GCash</option>
+            <option value="bank">Bank</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-form-group">
+        <label>Reference #</label>
+        <input type="text" id="sup-pay-ref" placeholder="Optional" />
+      </div>
+      <div id="sup-pay-error" class="error-box" style="display:none"></div>
+      <button type="submit" class="btn btn-primary btn-full" id="sup-pay-btn">Save Payment</button>
+      <button type="button" class="btn btn-outline btn-full" onclick="closeSupplierPaymentModal()">Cancel</button>
     </form>
     </div>
   </div>

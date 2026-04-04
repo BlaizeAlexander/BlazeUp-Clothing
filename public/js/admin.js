@@ -8,6 +8,11 @@
 // ── Module-level customer cache (avoids JSON-in-onclick) ─────
 let _customers = [];
 
+// ── HTML escape helper ────────────────────────────────────────
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Image lightbox ────────────────────────────────────────────
 function openImageModal(url) {
   const lb = document.getElementById('img-lightbox');
@@ -841,7 +846,7 @@ let _currentFinTab = 'overview';
 
 function switchFinTab(tab) {
   _currentFinTab = tab;
-  const finTabs = ['overview','receivables','payables','expenses'];
+  const finTabs = ['overview','receivables','payables','expenses','purchases','reports','ledger'];
   finTabs.forEach(t => {
     document.getElementById(`fin-tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`fin-panel-${t}`).style.display = t === tab ? '' : 'none';
@@ -850,6 +855,9 @@ function switchFinTab(tab) {
   if (tab === 'receivables')  loadFinanceReceivables();
   if (tab === 'payables')     loadFinancePayables();
   if (tab === 'expenses')     loadFinanceExpenses();
+  if (tab === 'purchases')    loadFinancePurchases();
+  if (tab === 'reports')      loadCurrentReport();
+  if (tab === 'ledger')       loadFinanceLedger();
 }
 
 
@@ -1788,6 +1796,493 @@ async function deleteExpense(id) {
   const res = await fetch(`/api/admin/expenses/${id}`, { method: 'DELETE', credentials: 'include' });
   if (res.ok) loadFinanceExpenses();
   else alert('Could not delete.');
+}
+
+
+// ════════════════════════════════════════════════════════════
+// FINANCE — PURCHASES
+// ════════════════════════════════════════════════════════════
+
+let _allPurchases = [];
+
+async function loadFinancePurchases() {
+  const el = document.getElementById('fin-purchases-content');
+  el.innerHTML = '<p class="admin-loading">Loading purchases...</p>';
+  try {
+    const res = await fetch('/api/admin/purchases', { credentials: 'include' });
+    _allPurchases = await res.json();
+    renderPurchases(_allPurchases);
+  } catch {
+    el.innerHTML = '<p class="admin-empty">Could not load purchases.</p>';
+  }
+}
+
+function renderPurchases(items) {
+  const el = document.getElementById('fin-purchases-content');
+  if (!items.length) {
+    el.innerHTML = '<p class="admin-empty">No purchases recorded yet.</p>';
+    return;
+  }
+  const totalOwed = items.reduce((s, p) => s + (p.balanceDue || 0), 0);
+  el.innerHTML = `
+    <div style="padding:12px 24px;background:var(--accent-light);border-bottom:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap">
+      <span>Total Purchases: <strong>${items.length}</strong></span>
+      <span>Outstanding: <strong style="color:var(--danger)">₱${fmt(totalOwed)}</strong></span>
+    </div>
+    <div class="admin-table-scroll"><table class="admin-table">
+      <thead><tr>
+        <th>Date</th><th>Supplier</th><th>Ref</th>
+        <th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(p => `
+          <tr>
+            <td>${p.date ? p.date.slice(0,10) : '—'}</td>
+            <td><strong>${esc(p.supplierName)}</strong></td>
+            <td style="color:var(--text-light);font-size:0.85rem">${esc(p.supplierRef || '—')}</td>
+            <td>₱${fmt(p.total)}</td>
+            <td>₱${fmt(p.amountPaid)}</td>
+            <td style="color:${p.balanceDue > 0 ? 'var(--danger)' : 'var(--success)'}">₱${fmt(p.balanceDue)}</td>
+            <td><span class="status-badge status-${p.paymentStatus}">${p.paymentStatus}</span></td>
+            <td>
+              ${p.balanceDue > 0 ? `<button class="btn btn-outline btn-small" onclick="openSupplierPaymentModal('${p.id}',${p.balanceDue})">Pay</button>` : ''}
+              <button class="btn btn-outline btn-small" onclick="viewPurchaseItems(${JSON.stringify(p).replace(/"/g,'&quot;')})">Items</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+function viewPurchaseItems(p) {
+  const lines = (p.items || []).map(it => `
+    <tr>
+      <td>${esc(it.name || '—')}</td>
+      <td>${it.qty}</td>
+      <td>₱${fmt(it.unit_cost)}</td>
+      <td>₱${fmt(it.line_total)}</td>
+    </tr>`).join('');
+  const html = `
+    <div style="padding:16px 20px">
+      <h3 style="margin:0 0 12px">${esc(p.supplierName)} — ${p.date ? p.date.slice(0,10) : ''}</h3>
+      <table class="admin-table" style="margin-bottom:12px">
+        <thead><tr><th>Item</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead>
+        <tbody>${lines || '<tr><td colspan="4" style="text-align:center;color:var(--text-light)">No items</td></tr>'}</tbody>
+      </table>
+      <div style="text-align:right;font-weight:600">Total: ₱${fmt(p.total)}</div>
+    </div>`;
+  const overlay = document.getElementById('purchase-modal-overlay');
+  const modal   = document.getElementById('purchase-modal');
+  modal.querySelector('.modal-header h2').textContent = 'Purchase Details';
+  modal.querySelector('.modal-scroll-body').innerHTML = html +
+    `<div style="padding:0 20px 16px"><button class="btn btn-outline btn-full" onclick="closePurchaseModal()">Close</button></div>`;
+  overlay.style.display = modal.style.display = '';
+}
+
+function openPurchaseModal() {
+  document.getElementById('purchase-modal').querySelector('.modal-header h2').textContent = 'New Purchase';
+  document.getElementById('purchase-form').reset();
+  document.getElementById('purchase-items-list').innerHTML = '';
+  document.getElementById('pur-total-display').textContent = '0.00';
+  document.getElementById('pur-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('purchase-form-error').style.display = 'none';
+  document.getElementById('purchase-save-btn').textContent = 'Record Purchase';
+  addPurchaseItem();
+  document.getElementById('purchase-modal-overlay').style.display = '';
+  document.getElementById('purchase-modal').style.display = '';
+}
+
+function closePurchaseModal() {
+  document.getElementById('purchase-modal-overlay').style.display = 'none';
+  document.getElementById('purchase-modal').style.display = 'none';
+}
+
+function addPurchaseItem() {
+  const list = document.getElementById('purchase-items-list');
+  if (!list) return;
+  const idx = list.children.length;
+  const row = document.createElement('div');
+  row.className = 'purchase-item-row';
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 80px 100px auto;gap:8px;align-items:center;margin-bottom:6px';
+  row.innerHTML = `
+    <input type="text"   placeholder="Item name / product" class="pur-item-name"  oninput="recalcPurchaseTotal()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.88rem" />
+    <input type="number" placeholder="Qty"  class="pur-item-qty"  min="1" step="1"    value="1"   oninput="recalcPurchaseTotal()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.88rem" />
+    <input type="number" placeholder="Cost" class="pur-item-cost" min="0" step="0.01" value="0"   oninput="recalcPurchaseTotal()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.88rem" />
+    <button type="button" onclick="this.closest('.purchase-item-row').remove();recalcPurchaseTotal()" style="background:none;border:none;color:var(--danger);font-size:1.1rem;cursor:pointer;padding:4px">✕</button>`;
+  list.appendChild(row);
+}
+
+function recalcPurchaseTotal() {
+  const rows  = document.querySelectorAll('.purchase-item-row');
+  let total = 0;
+  rows.forEach(r => {
+    const qty  = parseFloat(r.querySelector('.pur-item-qty').value)  || 0;
+    const cost = parseFloat(r.querySelector('.pur-item-cost').value) || 0;
+    total += qty * cost;
+  });
+  const el = document.getElementById('pur-total-display');
+  if (el) el.textContent = fmt(total);
+}
+
+async function savePurchase(e) {
+  e.preventDefault();
+  const errEl  = document.getElementById('purchase-form-error');
+  const saveBtn = document.getElementById('purchase-save-btn');
+  errEl.style.display = 'none';
+
+  const rows = [...document.querySelectorAll('.purchase-item-row')];
+  const items = rows.map(r => ({
+    name:     r.querySelector('.pur-item-name').value.trim(),
+    qty:      parseFloat(r.querySelector('.pur-item-qty').value)  || 0,
+    unitCost: parseFloat(r.querySelector('.pur-item-cost').value) || 0
+  })).filter(it => it.name && it.qty > 0);
+
+  if (!items.length) {
+    errEl.textContent = 'Add at least one item with a name and quantity.';
+    errEl.style.display = '';
+    return;
+  }
+
+  const body = {
+    supplierName: document.getElementById('pur-supplier').value.trim(),
+    supplierRef:  document.getElementById('pur-ref').value.trim(),
+    date:         document.getElementById('pur-date').value,
+    amountPaid:   parseFloat(document.getElementById('pur-amount-paid').value) || 0,
+    method:       document.getElementById('pur-method').value,
+    notes:        document.getElementById('pur-notes').value.trim(),
+    items
+  };
+
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+  try {
+    const res = await fetch('/api/admin/purchases', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error saving.'; errEl.style.display = ''; return; }
+    closePurchaseModal();
+    loadFinancePurchases();
+  } catch {
+    errEl.textContent = 'Cannot connect.'; errEl.style.display = '';
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Record Purchase';
+  }
+}
+
+function openSupplierPaymentModal(purchaseId, balanceDue) {
+  document.getElementById('sup-pay-purchase-id').value = purchaseId;
+  document.getElementById('sup-pay-balance').textContent = fmt(balanceDue);
+  document.getElementById('sup-pay-amount').value = '';
+  document.getElementById('sup-pay-amount').max = balanceDue;
+  document.getElementById('sup-pay-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('sup-pay-ref').value = '';
+  document.getElementById('sup-pay-error').style.display = 'none';
+  document.getElementById('sup-pay-modal-overlay').style.display = '';
+  document.getElementById('sup-pay-modal').style.display = '';
+}
+
+function closeSupplierPaymentModal() {
+  document.getElementById('sup-pay-modal-overlay').style.display = 'none';
+  document.getElementById('sup-pay-modal').style.display = 'none';
+}
+
+async function saveSupplierPayment(e) {
+  e.preventDefault();
+  const id     = document.getElementById('sup-pay-purchase-id').value;
+  const errEl  = document.getElementById('sup-pay-error');
+  const btn    = document.getElementById('sup-pay-btn');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(`/api/admin/purchases/${id}/payments`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount:          parseFloat(document.getElementById('sup-pay-amount').value),
+        date:            document.getElementById('sup-pay-date').value,
+        method:          document.getElementById('sup-pay-method').value,
+        referenceNumber: document.getElementById('sup-pay-ref').value.trim()
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error.'; errEl.style.display = ''; return; }
+    closeSupplierPaymentModal();
+    loadFinancePurchases();
+  } catch {
+    errEl.textContent = 'Cannot connect.'; errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Payment';
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════
+// FINANCE — REPORTS
+// ════════════════════════════════════════════════════════════
+
+let _currentReport = 'pnl';
+
+function switchReport(type) {
+  _currentReport = type;
+  document.querySelectorAll('.report-btn').forEach(b => {
+    b.classList.toggle('active', b.id === `report-btn-${type}`);
+  });
+  loadCurrentReport();
+}
+
+async function loadCurrentReport() {
+  const period = document.getElementById('report-period')?.value || 'thisMonth';
+  const el     = document.getElementById('fin-reports-content');
+  el.innerHTML = '<p class="admin-loading">Loading report...</p>';
+  try {
+    let url, res, data;
+    switch (_currentReport) {
+      case 'pnl':
+        res = await fetch(`/api/admin/reports/pnl?period=${period}`, { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderPnlReport(data, el);
+        break;
+      case 'balance-sheet':
+        res = await fetch('/api/admin/reports/balance-sheet', { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderBalanceSheet(data, el);
+        break;
+      case 'cash-flow':
+        res = await fetch(`/api/admin/reports/cash-flow?period=${period}`, { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderCashFlow(data, el);
+        break;
+      case 'sales':
+        res = await fetch(`/api/admin/reports/sales?period=${period}`, { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderSalesReport(data, el);
+        break;
+      case 'rec-aging':
+        res = await fetch('/api/admin/reports/receivables-aging', { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderRecAging(data, el);
+        break;
+      case 'pay-aging':
+        res = await fetch('/api/admin/reports/payables-aging', { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderPayAging(data, el);
+        break;
+      case 'inventory':
+        res = await fetch('/api/admin/reports/inventory', { credentials: 'include' });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderInventoryReport(data, el);
+        break;
+    }
+  } catch(err) {
+    el.innerHTML = `<p class="admin-empty" style="color:var(--danger)">Error loading report: ${esc(err.message)}</p>`;
+  }
+}
+
+function _reportHeader(title, subtitle) {
+  return `<div style="padding:20px 24px 8px"><h3 style="margin:0;font-size:1.1rem">${title}</h3>${subtitle ? `<p style="margin:4px 0 0;color:var(--text-light);font-size:0.85rem">${subtitle}</p>` : ''}</div>`;
+}
+
+function _reportTable(headers, rows, totalRow) {
+  const th = headers.map(h => `<th>${h}</th>`).join('');
+  const tr = rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('');
+  const foot = totalRow ? `<tfoot><tr>${totalRow.map(c => `<td><strong>${c}</strong></td>`).join('')}</tr></tfoot>` : '';
+  return `<div class="admin-table-scroll"><table class="admin-table"><thead><tr>${th}</tr></thead><tbody>${tr || '<tr><td colspan="'+headers.length+'" style="text-align:center;color:var(--text-light)">No data</td></tr>'}</tbody>${foot}</table></div>`;
+}
+
+function renderPnlReport(d, el) {
+  const p   = d.period;
+  const pct = v => v.toFixed(1) + '%';
+  const sign = v => v >= 0 ? `<span style="color:var(--success)">₱${fmt(v)}</span>` : `<span style="color:var(--danger)">−₱${fmt(Math.abs(v))}</span>`;
+
+  const expRows = (d.operatingExpenses || []).filter(e => e.amount !== 0).map(e =>
+    [`<span style="padding-left:16px;color:var(--text-light)">${esc(e.name)}</span>`, '', sign(e.amount)]
+  );
+
+  el.innerHTML = _reportHeader('Profit & Loss Statement', `${p.start} → ${p.end}`) + `
+    <div style="max-width:560px;margin:0 24px 24px">
+      <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0">Gross Sales</td><td></td><td style="text-align:right">₱${fmt(d.grossSales)}</td></tr>
+          <tr><td style="padding:4px 0 4px 16px;color:var(--text-light)">Less: Sales Discounts</td><td></td><td style="text-align:right;color:var(--text-light)">₱${fmt(d.salesDiscounts)}</td></tr>
+          <tr style="border-bottom:2px solid var(--border)"><td style="padding:4px 0 8px 16px;color:var(--text-light)">Less: Sales Returns</td><td></td><td style="text-align:right;color:var(--text-light)">₱${fmt(d.salesReturns)}</td></tr>
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 0;font-weight:600">Net Sales</td><td></td><td style="text-align:right;font-weight:600">₱${fmt(d.netSales)}</td></tr>
+          <tr><td style="padding:8px 0 4px 16px;color:var(--text-light)">Less: Cost of Goods Sold</td><td></td><td style="text-align:right;color:var(--text-light)">₱${fmt(d.cogs)}</td></tr>
+          <tr style="border-bottom:2px solid var(--border)"><td style="padding:4px 0 8px;font-weight:600">Gross Profit</td><td style="text-align:right;color:var(--text-light);font-size:0.82rem">${pct(d.grossMargin)}</td><td style="text-align:right;font-weight:600">${sign(d.grossProfit)}</td></tr>
+          ${expRows.length ? `<tr><td colspan="3" style="padding:8px 0 4px;font-weight:600;color:var(--text-light);font-size:0.85rem;text-transform:uppercase;letter-spacing:.5px">Operating Expenses</td></tr>` : ''}
+          ${expRows.map(([n,,a]) => `<tr><td style="padding:3px 0">${n}</td><td></td><td style="text-align:right">${a}</td></tr>`).join('')}
+          ${expRows.length ? `<tr style="border-top:1px solid var(--border)"><td style="padding:6px 0 4px;color:var(--text-light)">Total Operating Expenses</td><td></td><td style="text-align:right;color:var(--text-light)">₱${fmt(d.totalOperatingExpenses)}</td></tr>` : ''}
+          <tr style="border-top:2px solid var(--text);background:var(--accent-light)"><td style="padding:10px 8px;font-weight:700;font-size:1rem">Net Profit</td><td style="text-align:right;color:var(--text-light);font-size:0.82rem">${pct(d.netMargin)}</td><td style="text-align:right;font-weight:700;font-size:1rem">${sign(d.netProfit)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderBalanceSheet(d, el) {
+  const sign = v => v < 0 ? `<span style="color:var(--danger)">−₱${fmt(Math.abs(v))}</span>` : `₱${fmt(v)}`;
+  const secRows = (arr) => arr.map(r => `<tr><td style="padding:4px 0 4px 16px;color:var(--text-light)">${esc(r.name)}</td><td style="text-align:right">${sign(r.amount)}</td></tr>`).join('');
+  const balanced = d.isBalanced
+    ? '<span style="color:var(--success);font-size:0.82rem">✓ Balanced</span>'
+    : '<span style="color:var(--danger);font-size:0.82rem">⚠ Out of balance</span>';
+
+  el.innerHTML = _reportHeader('Balance Sheet', `As of ${d.asOf} ${balanced}`) + `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:0 24px 24px;max-width:800px">
+      <div>
+        <h4 style="margin:0 0 8px;text-transform:uppercase;font-size:0.78rem;letter-spacing:1px;color:var(--text-light)">Assets</h4>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+          <tbody>${secRows(d.assets)}<tr style="border-top:2px solid var(--text)"><td style="padding:8px 0;font-weight:700">Total Assets</td><td style="text-align:right;font-weight:700">₱${fmt(d.totalAssets)}</td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px;text-transform:uppercase;font-size:0.78rem;letter-spacing:1px;color:var(--text-light)">Liabilities</h4>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+          <tbody>${secRows(d.liabilities)}<tr style="border-top:1px solid var(--border)"><td style="padding:8px 0;font-weight:600">Total Liabilities</td><td style="text-align:right;font-weight:600">₱${fmt(d.totalLiabilities)}</td></tr></tbody>
+        </table>
+        <h4 style="margin:16px 0 8px;text-transform:uppercase;font-size:0.78rem;letter-spacing:1px;color:var(--text-light)">Equity</h4>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+          <tbody>${secRows(d.equity)}<tr style="border-top:2px solid var(--text)"><td style="padding:8px 0;font-weight:700">Total Equity</td><td style="text-align:right;font-weight:700">₱${fmt(d.totalEquity)}</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderCashFlow(d, el) {
+  const p    = d.period;
+  const sign = v => v >= 0 ? `<span style="color:var(--success)">+₱${fmt(v)}</span>` : `<span style="color:var(--danger)">−₱${fmt(Math.abs(v))}</span>`;
+  el.innerHTML = _reportHeader('Cash Flow Summary', `${p.start} → ${p.end}`) + `
+    <div style="max-width:440px;margin:0 24px 24px">
+      <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
+        <tbody>
+          ${(d.accounts || []).map(a => `
+            <tr><td colspan="2" style="padding:8px 0 2px;font-weight:600;font-size:0.85rem;color:var(--text-light)">${esc(a.name)}</td></tr>
+            <tr><td style="padding:3px 0 3px 16px">Cash Inflows</td><td style="text-align:right;color:var(--success)">₱${fmt(a.inflows)}</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:3px 0 8px 16px">Cash Outflows</td><td style="text-align:right;color:var(--danger)">₱${fmt(a.outflows)}</td></tr>`).join('')}
+          <tr style="border-top:1px solid var(--border)"><td style="padding:8px 0">Total Inflows</td><td style="text-align:right;color:var(--success)">₱${fmt(d.totalInflows)}</td></tr>
+          <tr><td style="padding:3px 0">Total Outflows</td><td style="text-align:right;color:var(--danger)">₱${fmt(d.totalOutflows)}</td></tr>
+          <tr style="border-top:1px solid var(--border)"><td style="padding:8px 0;font-weight:600">Net Cash Flow</td><td style="text-align:right;font-weight:600">${sign(d.netCashFlow)}</td></tr>
+          <tr style="background:var(--accent-light)"><td style="padding:8px;font-weight:700">Cash Balance (all time)</td><td style="text-align:right;font-weight:700">${sign(d.cashBalance)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderSalesReport(d, el) {
+  const p = d.period;
+  const s = d.summary;
+  el.innerHTML = _reportHeader('Sales Report', `${p.start} → ${p.end}`) + `
+    <div style="padding:0 24px 8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;max-width:900px">
+      ${[
+        ['Total Orders', s.totalOrders],
+        ['Gross Revenue', '₱' + fmt(s.grossRevenue)],
+        ['Discounts', '₱' + fmt(s.totalDiscounts)],
+        ['Net Revenue', '₱' + fmt(s.netRevenue)],
+        ['Avg Order', '₱' + fmt(s.avgOrderValue)],
+        ['Collected', '₱' + fmt(s.collectedRevenue)]
+      ].map(([l,v]) => `<div style="background:var(--accent-light);border-radius:8px;padding:12px 16px"><div style="font-size:0.78rem;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px">${l}</div><div style="font-size:1.2rem;font-weight:700;margin-top:4px">${v}</div></div>`).join('')}
+    </div>` +
+    _reportHeader('Top Products', '') +
+    _reportTable(['Product','Units Sold','Revenue','COGS'],
+      (d.topProducts || []).map(r => [esc(r.name), r.units_sold, '₱'+fmt(r.revenue), '₱'+fmt(r.cogs)]));
+}
+
+function renderRecAging(d, el) {
+  const bucketOrder = ['current','1-30 days','31-60 days','61-90 days','over 90 days'];
+  const summaryRows = bucketOrder.map(b => {
+    const bk = d.buckets[b];
+    return bk ? `<tr><td>${b}</td><td>${bk.count}</td><td style="color:${b==='current'?'var(--success)':'var(--danger)'}">₱${fmt(bk.total)}</td></tr>` : '';
+  }).join('');
+
+  el.innerHTML = _reportHeader('Receivables Aging', `As of ${d.asOf}`) +
+    `<div style="padding:0 24px 16px;max-width:400px"><table class="admin-table"><thead><tr><th>Bucket</th><th>Count</th><th>Amount</th></tr></thead><tbody>${summaryRows}</tbody><tfoot><tr><td><strong>Total</strong></td><td></td><td><strong>₱${fmt(d.totalOutstanding)}</strong></td></tr></tfoot></table></div>` +
+    _reportHeader('Detail', '') +
+    _reportTable(['Customer','Amount','Paid','Balance','Due Date','Bucket'],
+      (d.receivables || []).map(r => [esc(r.customer_name), '₱'+fmt(r.amount), '₱'+fmt(r.amount_paid||0), `<span style="color:var(--danger)">₱${fmt(r.balance_due)}</span>`, r.due_date || '—', r.aging_bucket]));
+}
+
+function renderPayAging(d, el) {
+  el.innerHTML = _reportHeader('Payables Aging', `As of ${d.asOf}`) +
+    _reportTable(['Supplier','Description','Amount','Paid','Balance','Due Date','Bucket'],
+      (d.payables || []).map(r => [esc(r.supplier_name), esc(r.description||'—'), '₱'+fmt(r.amount), '₱'+fmt(r.amount_paid||0), `<span style="color:var(--danger)">₱${fmt(r.balance_due??r.amount)}</span>`, r.due_date||'—', r.aging_bucket||'—']),
+      ['','','','Total Outstanding','₱'+fmt(d.totalOutstanding),'','']);
+}
+
+function renderInventoryReport(d, el) {
+  el.innerHTML = _reportHeader('Inventory Valuation', '') +
+    `<div style="padding:0 24px 8px;display:flex;gap:24px;flex-wrap:wrap">
+      <div style="background:var(--accent-light);border-radius:8px;padding:12px 20px"><div style="font-size:0.78rem;color:var(--text-light);text-transform:uppercase">Total Value</div><div style="font-size:1.3rem;font-weight:700;margin-top:4px">₱${fmt(d.totalValue||0)}</div></div>
+      <div style="background:var(--accent-light);border-radius:8px;padding:12px 20px"><div style="font-size:0.78rem;color:var(--text-light);text-transform:uppercase">Items Tracked</div><div style="font-size:1.3rem;font-weight:700;margin-top:4px">${(d.items||[]).length}</div></div>
+      ${(d.items||[]).filter(i=>i.is_low_stock).length ? `<div style="background:#fff3f3;border-radius:8px;padding:12px 20px;border:1px solid var(--danger)"><div style="font-size:0.78rem;color:var(--danger);text-transform:uppercase">Low Stock</div><div style="font-size:1.3rem;font-weight:700;margin-top:4px;color:var(--danger)">${(d.items||[]).filter(i=>i.is_low_stock).length}</div></div>` : ''}
+    </div>` +
+    _reportTable(['Product','Variant','Stock','Unit Cost','Value','Low Stock'],
+      (d.items||[]).map(r => [esc(r.product_name||r.name||'—'), esc(r.variant||'Default'), r.stock_qty, '₱'+fmt(r.unit_cost||r.weighted_avg_cost||0), '₱'+fmt(r.total_value||0), r.is_low_stock ? '<span style="color:var(--danger)">⚠ Low</span>' : '']));
+}
+
+
+// ════════════════════════════════════════════════════════════
+// FINANCE — LEDGER (Journal Entries)
+// ════════════════════════════════════════════════════════════
+
+async function loadFinanceLedger() {
+  const el = document.getElementById('fin-ledger-content');
+  el.innerHTML = '<p class="admin-loading">Loading journal entries...</p>';
+  try {
+    const res  = await fetch('/api/admin/journal-entries?limit=100', { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderLedger(data, el);
+  } catch(err) {
+    el.innerHTML = `<p class="admin-empty" style="color:var(--danger)">Error: ${esc(err.message)}</p>`;
+  }
+}
+
+function renderLedger(entries, el) {
+  if (!entries.length) {
+    el.innerHTML = '<p class="admin-empty">No journal entries yet. Post an order, expense, or purchase to generate entries.</p>';
+    return;
+  }
+  const rows = entries.map(je => {
+    const lines = (je.lines || []).map(l => `
+      <tr style="background:#fafafa">
+        <td colspan="2" style="padding:4px 8px 4px 32px;font-size:0.82rem;color:var(--text-light)">${esc(l.account_code)} ${esc(l.account_name)}</td>
+        <td style="padding:4px 8px;font-size:0.82rem;text-align:right;color:var(--success)">${parseFloat(l.debit)>0 ? '₱'+fmt(l.debit) : ''}</td>
+        <td style="padding:4px 8px;font-size:0.82rem;text-align:right;color:var(--danger)">${parseFloat(l.credit)>0 ? '₱'+fmt(l.credit) : ''}</td>
+        <td colspan="2" style="padding:4px 8px;font-size:0.82rem;color:var(--text-light)">${esc(l.description||'')}</td>
+      </tr>`).join('');
+    const totalDebit  = (je.lines||[]).reduce((s,l)=>s+parseFloat(l.debit||0),0);
+    const totalCredit = (je.lines||[]).reduce((s,l)=>s+parseFloat(l.credit||0),0);
+    return `
+      <tr style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
+        <td>${je.date}</td>
+        <td><strong>${esc(je.description)}</strong></td>
+        <td style="text-align:right;color:var(--success)">₱${fmt(totalDebit)}</td>
+        <td style="text-align:right;color:var(--danger)">₱${fmt(totalCredit)}</td>
+        <td><span style="font-size:0.78rem;background:var(--accent-light);padding:2px 7px;border-radius:10px">${esc(je.ref_type||'manual')}</span></td>
+        <td style="font-size:0.78rem;color:var(--text-light)">${esc(je.posted_by_name||'—')}</td>
+      </tr>
+      <tr style="display:none"><td colspan="6" style="padding:0;border-bottom:2px solid var(--border)">
+        <table style="width:100%;border-collapse:collapse">
+          <tbody>${lines}</tbody>
+        </table>
+      </td></tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="padding:12px 24px;background:var(--accent-light);border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--text-light)">
+      ${entries.length} entries — click any row to expand lines
+    </div>
+    <div class="admin-table-scroll"><table class="admin-table">
+      <thead><tr>
+        <th>Date</th><th>Description</th><th>Dr</th><th>Cr</th><th>Type</th><th>Posted By</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
 }
 
 
