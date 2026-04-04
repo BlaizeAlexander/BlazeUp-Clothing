@@ -13,30 +13,207 @@ const { postExpense, voidExpense }   = require('../services/expenseService');
 
 const router = express.Router();
 
-// ── LEGACY overview (kept for existing admin.js) ─────────────
+// ── LEGACY overview — direct SQL (works with pre-migration data) ─
+// Reads directly from orders/expenses/products so existing confirmed
+// orders show up even if they have no journal entries yet.
 // New code should use GET /api/admin/reports/dashboard instead.
 router.get('/admin/finance/overview', requireLogin, requireAdmin, async (req, res, next) => {
+  const PAID = ['confirmed', 'shipped', 'delivered'];
+
+  function periodBounds(period) {
+    const now = new Date();
+    if (period === 'thisMonth') return [
+      new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+    ];
+    if (period === 'thisYear') return [
+      new Date(now.getFullYear(), 0, 1).toISOString(),
+      new Date(now.getFullYear() + 1, 0, 1).toISOString()
+    ];
+    return ['1970-01-01T00:00:00Z', '2999-12-31T23:59:59Z'];
+  }
+
   try {
-    const { getDashboardKPIs } = require('../services/reportService');
-    const period = req.query.period === 'thisYear' ? 'thisYear'
-                 : req.query.period === 'thisMonth' ? 'thisMonth'
-                 : 'allTime';
-    const kpis = await getDashboardKPIs(period);
-    // Shape response to match what existing admin.js expects
+    const period = req.query.period || 'allTime';
+    const [start, end] = periodBounds(period);
+
+    const [revRes, pendRes, cogsRes, expRes, invRes, recRes, payRes, cntRes] = await Promise.all([
+      query(`SELECT COALESCE(SUM(o.total),0) AS total, COUNT(*) AS cnt
+             FROM orders o
+             WHERE o.status = ANY($1) AND o.is_voided = false
+               AND o.created_at >= $2 AND o.created_at < $3`,
+        [PAID, start, end]),
+
+      query(`SELECT COALESCE(SUM(total),0) AS total, COUNT(*) AS cnt
+             FROM orders
+             WHERE status = 'pending' AND is_voided = false
+               AND created_at >= $1 AND created_at < $2`,
+        [start, end]),
+
+      query(`SELECT oi.cost_at_sale, oi.quantity
+             FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id
+             WHERE o.status = ANY($1) AND o.is_voided = false
+               AND o.created_at >= $2 AND o.created_at < $3`,
+        [PAID, start, end]),
+
+      query(`SELECT COALESCE(SUM(amount),0) AS total
+             FROM expenses
+             WHERE is_voided = false
+               AND date >= $1::date AND date < $2::date`,
+        [start.slice(0, 10), end.slice(0, 10)]),
+
+      // Use product_variants WAC if available, fall back to products.cost_price
+      query(`SELECT
+               COALESCE(
+                 (SELECT SUM(pv.stock_qty * pv.weighted_avg_cost) FROM product_variants pv WHERE pv.is_active = true),
+                 (SELECT SUM(p.cost_price * p.stock_quantity) FROM products p),
+                 0
+               ) AS total`),
+
+      query(`SELECT
+               COALESCE(SUM(COALESCE(balance_due, amount)),0) AS outstanding
+             FROM receivables
+             WHERE COALESCE(balance_due, amount) > 0`),
+
+      query(`SELECT
+               COALESCE(SUM(COALESCE(balance_due, amount)),0) AS outstanding
+             FROM payables
+             WHERE COALESCE(balance_due, amount) > 0`),
+
+      query(`SELECT
+               (SELECT COUNT(*) FROM products)          AS total_products,
+               (SELECT COUNT(*) FROM orders WHERE is_voided = false) AS total_orders`)
+    ]);
+
+    const totalRevenue    = parseFloat(revRes.rows[0].total);
+    const paidOrders      = parseInt(revRes.rows[0].cnt, 10);
+    const pendingRevenue  = parseFloat(pendRes.rows[0].total);
+    const pendingOrders   = parseInt(pendRes.rows[0].cnt, 10);
+    const cogs            = cogsRes.rows.reduce(
+      (sum, r) => sum + parseFloat(r.cost_at_sale) * r.quantity, 0
+    );
+    const totalExpenses        = parseFloat(expRes.rows[0].total);
+    const inventoryValue       = parseFloat(invRes.rows[0].total);
+    const outstandingReceivables = parseFloat(recRes.rows[0].outstanding);
+    const outstandingPayables    = parseFloat(payRes.rows[0].outstanding);
+    const totalProducts        = parseInt(cntRes.rows[0].total_products, 10);
+    const totalOrders          = parseInt(cntRes.rows[0].total_orders, 10);
+
+    const grossProfit     = totalRevenue - cogs;
+    const operatingProfit = grossProfit  - totalExpenses;
+    const estCashPosition = operatingProfit - outstandingPayables;
+
     res.json({
       period,
-      totalRevenue:          kpis.netSales,
-      grossProfit:           kpis.grossProfit,
-      operatingProfit:       kpis.netProfit,
-      cogs:                  kpis.cogs,
-      totalExpenses:         kpis.totalOpEx,
-      inventoryValue:        kpis.inventoryValue,
-      cashBalance:           kpis.cashBalance,
-      outstandingReceivables: kpis.accountsReceivable,
-      outstandingPayables:   kpis.accountsPayable,
-      totalProducts:         0,
-      totalOrders:           0
+      inventoryValue,
+      totalRevenue,
+      pendingRevenue,
+      cogs,
+      grossProfit,
+      totalExpenses,
+      operatingProfit,
+      estCashPosition,
+      outstandingReceivables,
+      outstandingPayables,
+      totalProducts,
+      totalOrders,
+      paidOrders,
+      pendingOrders
     });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/finance/backfill-journal ──────────────────
+// Creates journal entries for confirmed orders that pre-date the
+// new accounting system (posted_at IS NULL). Safe to run multiple
+// times — skips orders that already have journal entries.
+router.post('/admin/finance/backfill-journal', requireLogin, requireAdmin, async (req, res, next) => {
+  const { postEntry } = require('../services/journalService');
+  const { getClient } = require('../db');
+
+  try {
+    const { rows: orders } = await query(`
+      SELECT o.*, COALESCE(array_agg(row_to_json(oi)) FILTER (WHERE oi.id IS NOT NULL), '{}') AS items
+      FROM orders o
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      WHERE o.status IN ('confirmed','shipped','delivered')
+        AND o.is_voided = false
+        AND o.posted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM journal_entries je
+          WHERE je.ref_type = 'order' AND je.ref_id = o.id AND je.is_voided = false
+        )
+      GROUP BY o.id
+    `);
+
+    let backfilled = 0;
+    for (const order of orders) {
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
+
+        const items = Array.isArray(order.items) ? order.items : [];
+        const subtotal       = parseFloat(order.subtotal || order.total);
+        const discountAmount = parseFloat(order.discount_amount || 0);
+        const shippingFee    = parseFloat(order.shipping_fee    || 0);
+        const total          = parseFloat(order.total);
+        const cogs           = items.reduce(
+          (s, it) => s + parseFloat(it.cost_at_sale || 0) * (it.quantity || 1), 0
+        );
+
+        // Revenue entry
+        const revenueLines = [
+          { accountCode: '1100', debit: total, credit: 0, description: `AR: ${order.customer_name}` },
+          { accountCode: '4000', debit: 0, credit: subtotal + shippingFee, description: 'Gross Sales (backfill)' }
+        ];
+        if (discountAmount > 0) {
+          revenueLines.push({ accountCode: '4010', debit: discountAmount, credit: 0, description: 'Sales Discount' });
+        }
+        await postEntry({
+          date:        order.created_at,
+          description: `[Backfill] Sale — Order #${order.id.slice(-8).toUpperCase()}`,
+          refType:     'order', refId: order.id, postedBy: req.user.id,
+          lines:       revenueLines
+        }, client);
+
+        // COGS entry
+        if (cogs > 0) {
+          await postEntry({
+            date:        order.created_at,
+            description: `[Backfill] COGS — Order #${order.id.slice(-8).toUpperCase()}`,
+            refType:     'order', refId: order.id, postedBy: req.user.id,
+            lines: [
+              { accountCode: '5000', debit: cogs, credit: 0,    description: 'COGS (backfill)' },
+              { accountCode: '1200', debit: 0,    credit: cogs, description: 'Inventory (backfill)' }
+            ]
+          }, client);
+        }
+
+        // Mark posted and update balances
+        const amountPaid = parseFloat(order.amount_paid || 0);
+        const balanceDue = Math.max(0, total - amountPaid);
+        await client.query(`
+          UPDATE orders SET
+            posted_at      = $1,
+            subtotal       = $2,
+            discount_amount= $3,
+            balance_due    = $4,
+            payment_status = CASE WHEN $4 <= 0 THEN 'paid' WHEN $5 > 0 THEN 'partial' ELSE 'unpaid' END
+          WHERE id = $6
+        `, [order.created_at, subtotal, discountAmount, balanceDue, amountPaid, order.id]);
+
+        await client.query('COMMIT');
+        backfilled++;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`[backfill] order ${order.id} failed:`, err.message);
+      } finally {
+        client.release();
+      }
+    }
+
+    res.json({ success: true, backfilled, skipped: orders.length - backfilled });
   } catch (err) { next(err); }
 });
 
