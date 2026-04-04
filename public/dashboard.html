@@ -172,7 +172,12 @@
           </div>
           <div class="form-group">
             <label for="cred-new-password">New Password <span style="color:var(--text-light);font-weight:400">(leave blank to keep current)</span></label>
-            <input type="password" id="cred-new-password" placeholder="At least 8 characters" />
+            <input type="password" id="cred-new-password" placeholder="At least 8 characters" oninput="checkPasswordMatch()" />
+          </div>
+          <div class="form-group">
+            <label for="cred-confirm-password">Confirm New Password</label>
+            <input type="password" id="cred-confirm-password" placeholder="Re-enter new password" oninput="checkPasswordMatch()" />
+            <small id="password-match-msg" style="display:none;margin-top:4px;font-size:0.82rem"></small>
           </div>
 
           <div id="credentials-success" class="success-box" style="display:none">

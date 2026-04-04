@@ -498,6 +498,22 @@ async function updateProfile(event) {
 
 
 // ── Change email / password ───────────────────────────────────
+function checkPasswordMatch() {
+  const pw   = document.getElementById('cred-new-password').value;
+  const conf = document.getElementById('cred-confirm-password').value;
+  const msg  = document.getElementById('password-match-msg');
+  if (!conf) { msg.style.display = 'none'; return; }
+  if (pw === conf) {
+    msg.textContent   = 'Passwords match';
+    msg.style.color   = 'var(--success, green)';
+    msg.style.display = '';
+  } else {
+    msg.textContent   = 'Passwords do not match';
+    msg.style.color   = 'var(--danger, #c0392b)';
+    msg.style.display = '';
+  }
+}
+
 function toggleCredentialsEdit() {
   const form = document.getElementById('credentials-form');
   const btn  = document.getElementById('edit-credentials-btn');
@@ -506,8 +522,9 @@ function toggleCredentialsEdit() {
     form.style.display = 'none';
     btn.textContent    = '🔒 Change Email / Password';
     form.reset();
-    document.getElementById('credentials-success').style.display = 'none';
-    document.getElementById('credentials-error').style.display   = 'none';
+    document.getElementById('credentials-success').style.display  = 'none';
+    document.getElementById('credentials-error').style.display    = 'none';
+    document.getElementById('password-match-msg').style.display   = 'none';
   } else {
     form.style.display = '';
     btn.textContent    = '✕ Cancel';
@@ -517,17 +534,25 @@ function toggleCredentialsEdit() {
 async function updateCredentials(event) {
   event.preventDefault();
 
-  const currentPassword = document.getElementById('cred-current-password').value;
-  const newEmail        = document.getElementById('cred-new-email').value.trim();
-  const newPassword     = document.getElementById('cred-new-password').value;
+  const currentPassword   = document.getElementById('cred-current-password').value;
+  const newEmail          = document.getElementById('cred-new-email').value.trim();
+  const newPassword       = document.getElementById('cred-new-password').value;
+  const confirmPassword   = document.getElementById('cred-confirm-password').value;
   const successBox      = document.getElementById('credentials-success');
   const errorBox        = document.getElementById('credentials-error');
   const saveBtn         = document.getElementById('credentials-save-btn');
 
   successBox.style.display = 'none';
   errorBox.style.display   = 'none';
-  saveBtn.disabled         = true;
-  saveBtn.textContent      = 'Saving...';
+
+  if (newPassword && newPassword !== confirmPassword) {
+    errorBox.textContent   = 'Passwords do not match.';
+    errorBox.style.display = '';
+    return;
+  }
+
+  saveBtn.disabled    = true;
+  saveBtn.textContent = 'Saving...';
 
   try {
     const res  = await fetch('/api/profile/credentials', {
@@ -544,6 +569,8 @@ async function updateCredentials(event) {
       document.getElementById('cred-current-password').value = '';
       document.getElementById('cred-new-email').value        = '';
       document.getElementById('cred-new-password').value     = '';
+      document.getElementById('cred-confirm-password').value = '';
+      document.getElementById('password-match-msg').style.display = 'none';
     } else {
       errorBox.textContent   = data.error || 'Could not update. Please try again.';
       errorBox.style.display = '';
