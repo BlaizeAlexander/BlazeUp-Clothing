@@ -1,162 +1,81 @@
 // ============================================================
-// routes/finance.js — Overview, expenses, receivables, payables
+// routes/finance.js — Expenses, Receivables, Payables CRUD
+//
+// The heavy reporting logic moved to routes/reports.js.
+// The old /api/admin/finance/overview is kept for backward
+// compatibility with the existing admin.js frontend.
 // ============================================================
 
 const express = require('express');
 const { query } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware/auth');
+const { postExpense, voidExpense }   = require('../services/expenseService');
 
 const router = express.Router();
 
-// ── Period helper ─────────────────────────────────────────────
-function periodBounds(period) {
-  const now = new Date();
-  if (period === 'thisMonth') {
-    return [
-      new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
-      new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
-    ];
-  }
-  if (period === 'thisYear') {
-    return [
-      new Date(now.getFullYear(), 0, 1).toISOString(),
-      new Date(now.getFullYear() + 1, 0, 1).toISOString()
-    ];
-  }
-  return ['1970-01-01T00:00:00Z', '2999-12-31T23:59:59Z'];
-}
-
-// ── GET /api/admin/finance/overview ──────────────────────────
+// ── LEGACY overview (kept for existing admin.js) ─────────────
+// New code should use GET /api/admin/reports/dashboard instead.
 router.get('/admin/finance/overview', requireLogin, requireAdmin, async (req, res, next) => {
-  const [start, end] = periodBounds(req.query.period || 'allTime');
-  const PAID = ['confirmed', 'shipped', 'delivered'];
-
   try {
-    // Fire all independent aggregates in parallel — much faster than sequential
-    const [revRes, pendRes, cogsRes, expRes, invRes, recRes, payRes, cntRes] = await Promise.all([
-      // Revenue from paid orders in period
-      query(`SELECT COALESCE(SUM(o.total),0) AS total, COUNT(*) AS cnt
-             FROM orders o
-             WHERE o.status = ANY($1) AND o.created_at >= $2 AND o.created_at < $3`,
-        [PAID, start, end]),
-
-      // Pending revenue in period
-      query(`SELECT COALESCE(SUM(total),0) AS total, COUNT(*) AS cnt
-             FROM orders
-             WHERE status = 'pending' AND created_at >= $1 AND created_at < $2`,
-        [start, end]),
-
-      // Items of paid orders for COGS calculation
-      // (we sum in SQL where possible; complex formula stays in JS)
-      query(`SELECT oi.cost_at_sale, oi.quantity
-             FROM order_items oi
-             JOIN orders o ON o.id = oi.order_id
-             WHERE o.status = ANY($1) AND o.created_at >= $2 AND o.created_at < $3`,
-        [PAID, start, end]),
-
-      // Expenses in period (date column is DATE, so use ::date cast)
-      query(`SELECT COALESCE(SUM(amount),0) AS total
-             FROM expenses
-             WHERE date >= $1::date AND date < $2::date`,
-        [start.slice(0, 10), end.slice(0, 10)]),
-
-      // Inventory value = Σ(cost_price × stock_quantity)
-      query(`SELECT COALESCE(SUM(cost_price * stock_quantity),0) AS total FROM products`),
-
-      // Receivables: grand total + outstanding subset
-      query(`SELECT
-               COALESCE(SUM(amount),0) AS total,
-               COALESCE(SUM(CASE WHEN status = ANY($1) THEN amount ELSE 0 END),0) AS outstanding
-             FROM receivables`,
-        [['pending','overdue','open','partial']]),
-
-      // Payables: grand total + outstanding subset
-      query(`SELECT
-               COALESCE(SUM(amount),0) AS total,
-               COALESCE(SUM(CASE WHEN status = ANY($1) THEN amount ELSE 0 END),0) AS outstanding
-             FROM payables`,
-        [['unpaid','partial','overdue']]),
-
-      // Product and order counts
-      query(`SELECT
-               (SELECT COUNT(*) FROM products) AS total_products,
-               (SELECT COUNT(*) FROM orders)   AS total_orders`)
-    ]);
-
-    const totalRevenue  = parseFloat(revRes.rows[0].total);
-    const paidOrders    = parseInt(revRes.rows[0].cnt, 10);
-    const pendingRevenue = parseFloat(pendRes.rows[0].total);
-    const pendingOrders  = parseInt(pendRes.rows[0].cnt, 10);
-
-    // COGS: sum costAtSale × quantity for every item in paid orders
-    const cogs = cogsRes.rows.reduce(
-      (sum, r) => sum + parseFloat(r.cost_at_sale) * r.quantity,
-      0
-    );
-
-    const totalExpenses           = parseFloat(expRes.rows[0].total);
-    const inventoryValue          = parseFloat(invRes.rows[0].total);
-    const totalReceivables        = parseFloat(recRes.rows[0].total);
-    const outstandingReceivables  = parseFloat(recRes.rows[0].outstanding);
-    const totalPayables           = parseFloat(payRes.rows[0].total);
-    const outstandingPayables     = parseFloat(payRes.rows[0].outstanding);
-    const totalProducts           = parseInt(cntRes.rows[0].total_products, 10);
-    const totalOrders             = parseInt(cntRes.rows[0].total_orders, 10);
-
-    const grossProfit     = totalRevenue - cogs;
-    const operatingProfit = grossProfit  - totalExpenses;
-    const estCashPosition = operatingProfit - outstandingPayables;
-
+    const { getDashboardKPIs } = require('../services/reportService');
+    const period = req.query.period === 'thisYear' ? 'thisYear'
+                 : req.query.period === 'thisMonth' ? 'thisMonth'
+                 : 'allTime';
+    const kpis = await getDashboardKPIs(period);
+    // Shape response to match what existing admin.js expects
     res.json({
-      period: req.query.period || 'allTime',
-      inventoryValue,
-      totalRevenue,
-      pendingRevenue,
-      cogs,
-      grossProfit,
-      totalExpenses,
-      operatingProfit,
-      outstandingReceivables,
-      totalReceivables,
-      outstandingPayables,
-      totalPayables,
-      estCashPosition,
-      totalProducts,
-      totalOrders,
-      paidOrders,
-      pendingOrders
+      period,
+      totalRevenue:          kpis.netSales,
+      grossProfit:           kpis.grossProfit,
+      operatingProfit:       kpis.netProfit,
+      cogs:                  kpis.cogs,
+      totalExpenses:         kpis.totalOpEx,
+      inventoryValue:        kpis.inventoryValue,
+      cashBalance:           kpis.cashBalance,
+      outstandingReceivables: kpis.accountsReceivable,
+      outstandingPayables:   kpis.accountsPayable,
+      totalProducts:         0,
+      totalOrders:           0
     });
   } catch (err) { next(err); }
 });
 
 // ── EXPENSES ─────────────────────────────────────────────────
 const mapExpense = r => ({
-  id:          r.id,
-  category:    r.category,
-  description: r.description,
-  amount:      parseFloat(r.amount),
-  date:        r.date,
-  createdAt:   r.created_at
+  id:            r.id,
+  category:      r.category,
+  description:   r.description,
+  amount:        parseFloat(r.amount),
+  date:          r.date,
+  paymentStatus: r.payment_status || 'paid',
+  paymentMethod: r.payment_method || 'cash',
+  isVoided:      r.is_voided,
+  createdAt:     r.created_at
 });
 
 router.get('/admin/expenses', requireLogin, requireAdmin, async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT * FROM expenses ORDER BY created_at DESC');
+    const { rows } = await query(
+      'SELECT * FROM expenses WHERE is_voided = false ORDER BY date DESC, created_at DESC'
+    );
     res.json(rows.map(mapExpense));
   } catch (err) { next(err); }
 });
 
+// New: post through expenseService (records journal entry)
 router.post('/admin/expenses', requireLogin, requireAdmin, async (req, res, next) => {
-  const { category, description, amount, date } = req.body;
+  const { category, description, amount, date, paymentStatus, paymentMethod } = req.body;
   if (!category || !amount || !date)
     return res.status(400).json({ error: 'Category, amount, and date are required.' });
   try {
-    const { rows } = await query(
-      'INSERT INTO expenses (category, description, amount, date) VALUES ($1,$2,$3,$4::date) RETURNING *',
-      [category.trim(), (description || '').trim(), parseFloat(amount), date]
+    const result = await postExpense(
+      { category, description, amount, date, paymentStatus, paymentMethod },
+      req.user.id
     );
-    res.json({ success: true, expense: mapExpense(rows[0]) });
-  } catch (err) { next(err); }
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.put('/admin/expenses/:id', requireLogin, requireAdmin, async (req, res, next) => {
@@ -168,7 +87,7 @@ router.put('/admin/expenses/:id', requireLogin, requireAdmin, async (req, res, n
         description = COALESCE($2, description),
         amount      = COALESCE($3, amount),
         date        = COALESCE($4::date, date)
-      WHERE id = $5 RETURNING *
+      WHERE id = $5 AND is_voided = false RETURNING *
     `, [
       category    ? category.trim()    : null,
       description !== undefined ? description.trim() : null,
@@ -181,9 +100,23 @@ router.put('/admin/expenses/:id', requireLogin, requireAdmin, async (req, res, n
   } catch (err) { next(err); }
 });
 
+// Void instead of hard delete
 router.delete('/admin/expenses/:id', requireLogin, requireAdmin, async (req, res, next) => {
+  const { reason } = req.body;
   try {
-    const result = await query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
+    // Check if expense has a journal entry — if so, use voidExpense
+    const { rows: jes } = await query(
+      "SELECT id FROM journal_entries WHERE ref_type = 'expense' AND ref_id = $1 AND is_voided = false",
+      [req.params.id]
+    );
+    if (jes.length) {
+      if (!reason) return res.status(400).json({ error: 'A void reason is required.' });
+      return res.json(await voidExpense(req.params.id, { reason, adminId: req.user.id }));
+    }
+    // Legacy expense without journal entry — hard delete
+    const result = await query(
+      'UPDATE expenses SET is_voided = true WHERE id = $1', [req.params.id]
+    );
     if (!result.rowCount) return res.status(404).json({ error: 'Expense not found.' });
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -192,10 +125,13 @@ router.delete('/admin/expenses/:id', requireLogin, requireAdmin, async (req, res
 // ── RECEIVABLES ──────────────────────────────────────────────
 const mapReceivable = r => ({
   id:             r.id,
-  relatedOrderId: r.related_order_id,
+  orderId:        r.order_id || r.related_order_id,
   customerId:     r.customer_id,
   customerName:   r.customer_name,
   amount:         parseFloat(r.amount),
+  originalAmount: parseFloat(r.original_amount || r.amount),
+  amountPaid:     parseFloat(r.amount_paid     || 0),
+  balanceDue:     parseFloat(r.balance_due      ?? r.amount),
   status:         r.status,
   dueDate:        r.due_date,
   notes:          r.notes,
@@ -216,14 +152,15 @@ router.post('/admin/receivables', requireLogin, requireAdmin, async (req, res, n
   try {
     const { rows } = await query(`
       INSERT INTO receivables
-        (related_order_id, customer_id, customer_name, amount, status, due_date, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
+        (order_id, related_order_id, customer_id, customer_name, amount, original_amount,
+         balance_due, status, due_date, notes)
+      VALUES ($1,$1,$2,$3,$4,$4,$4,$5,$6,$7) RETURNING *
     `, [
       relatedOrderId || null,
       customerId     || null,
       customerName.trim(),
       parseFloat(amount),
-      status  || 'pending',
+      status  || 'current',
       dueDate || '',
       (notes  || '').trim()
     ]);
@@ -232,25 +169,36 @@ router.post('/admin/receivables', requireLogin, requireAdmin, async (req, res, n
 });
 
 router.put('/admin/receivables/:id', requireLogin, requireAdmin, async (req, res, next) => {
-  const { customerName, amount, status, dueDate, notes } = req.body;
+  const { customerName, amount, status, dueDate, notes, amountPaid } = req.body;
   try {
+    const { rows: cur } = await query('SELECT * FROM receivables WHERE id = $1', [req.params.id]);
+    if (!cur.length) return res.status(404).json({ error: 'Receivable not found.' });
+    const c = cur[0];
+
+    const newAmountPaid = amountPaid !== undefined ? parseFloat(amountPaid) : parseFloat(c.amount_paid || 0);
+    const origAmount    = amount ? parseFloat(amount) : parseFloat(c.original_amount || c.amount);
+    const balanceDue    = Math.max(0, origAmount - newAmountPaid);
+    const newStatus     = status || (balanceDue <= 0 ? 'paid' : c.status);
+
     const { rows } = await query(`
       UPDATE receivables SET
-        customer_name = COALESCE($1, customer_name),
-        amount        = COALESCE($2, amount),
-        status        = COALESCE($3, status),
-        due_date      = COALESCE($4, due_date),
-        notes         = COALESCE($5, notes)
-      WHERE id = $6 RETURNING *
+        customer_name   = COALESCE($1, customer_name),
+        amount          = COALESCE($2, amount),
+        original_amount = COALESCE($2, original_amount),
+        amount_paid     = $3,
+        balance_due     = $4,
+        status          = $5,
+        due_date        = COALESCE($6, due_date),
+        notes           = COALESCE($7, notes)
+      WHERE id = $8 RETURNING *
     `, [
       customerName ? customerName.trim() : null,
-      amount       ? parseFloat(amount)  : null,
-      status       || null,
-      dueDate !== undefined ? dueDate    : null,
-      notes   !== undefined ? notes.trim(): null,
+      amount ? parseFloat(amount) : null,
+      newAmountPaid, balanceDue, newStatus,
+      dueDate !== undefined ? dueDate : null,
+      notes   !== undefined ? notes.trim() : null,
       req.params.id
     ]);
-    if (!rows.length) return res.status(404).json({ error: 'Receivable not found.' });
     res.json({ success: true, receivable: mapReceivable(rows[0]) });
   } catch (err) { next(err); }
 });
@@ -263,25 +211,32 @@ router.delete('/admin/receivables/:id', requireLogin, requireAdmin, async (req, 
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/finance/sync-receivables
+// Sync receivables from confirmed orders (admin utility)
 router.post('/admin/finance/sync-receivables', requireLogin, requireAdmin, async (req, res, next) => {
   try {
     const ordersRes = await query(
-      `SELECT * FROM orders WHERE status = ANY($1)`,
+      `SELECT * FROM orders WHERE status = ANY($1) AND is_voided = false`,
       [['confirmed','shipped','delivered']]
     );
     const recRes = await query(
-      'SELECT related_order_id FROM receivables WHERE related_order_id IS NOT NULL'
+      'SELECT order_id FROM receivables WHERE order_id IS NOT NULL'
     );
-    const existing = new Set(recRes.rows.map(r => r.related_order_id));
-
+    const existing = new Set(recRes.rows.map(r => r.order_id));
     let created = 0;
     for (const o of ordersRes.rows) {
       if (!existing.has(o.id)) {
+        const balance = parseFloat(o.balance_due ?? o.total);
         await query(`
-          INSERT INTO receivables (related_order_id, customer_id, customer_name, amount, status)
-          VALUES ($1,$2,$3,$4,$5)
-        `, [o.id, o.user_id, o.customer_name, o.total, o.status === 'delivered' ? 'paid' : 'pending']);
+          INSERT INTO receivables
+            (order_id, related_order_id, customer_id, customer_name, amount,
+             original_amount, amount_paid, balance_due, status)
+          VALUES ($1,$1,$2,$3,$4,$4,$5,$6,$7)
+        `, [
+          o.id, o.user_id, o.customer_name, o.total,
+          parseFloat(o.amount_paid || 0),
+          balance,
+          balance <= 0 ? 'paid' : 'current'
+        ]);
         created++;
       }
     }
@@ -291,14 +246,18 @@ router.post('/admin/finance/sync-receivables', requireLogin, requireAdmin, async
 
 // ── PAYABLES ─────────────────────────────────────────────────
 const mapPayable = r => ({
-  id:           r.id,
-  supplierName: r.supplier_name,
-  description:  r.description,
-  amount:       parseFloat(r.amount),
-  status:       r.status,
-  dueDate:      r.due_date,
-  notes:        r.notes,
-  createdAt:    r.created_at
+  id:             r.id,
+  purchaseId:     r.purchase_id,
+  supplierName:   r.supplier_name,
+  description:    r.description,
+  amount:         parseFloat(r.amount),
+  originalAmount: parseFloat(r.original_amount || r.amount),
+  amountPaid:     parseFloat(r.amount_paid     || 0),
+  balanceDue:     parseFloat(r.balance_due      ?? r.amount),
+  status:         r.status,
+  dueDate:        r.due_date,
+  notes:          r.notes,
+  createdAt:      r.created_at
 });
 
 router.get('/admin/payables', requireLogin, requireAdmin, async (req, res, next) => {
@@ -314,8 +273,8 @@ router.post('/admin/payables', requireLogin, requireAdmin, async (req, res, next
     return res.status(400).json({ error: 'Supplier name and amount are required.' });
   try {
     const { rows } = await query(`
-      INSERT INTO payables (supplier_name, description, amount, status, due_date, notes)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
+      INSERT INTO payables (supplier_name, description, amount, original_amount, balance_due, status, due_date, notes)
+      VALUES ($1,$2,$3,$3,$3,$4,$5,$6) RETURNING *
     `, [
       supplierName.trim(),
       (description || '').trim(),
